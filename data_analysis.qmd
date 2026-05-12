@@ -2,7 +2,7 @@
 title: "DEJU playback study data analysis"
 author: "Eleanor, Kobe, Liam, Dave"
 format: html
-editor: visual
+editor: source
 ---
 
 ## Quarto
