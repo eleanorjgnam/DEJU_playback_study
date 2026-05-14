@@ -14,36 +14,78 @@ library(knitr)
 library(hms)
 ```
 
-Initially, I will develop some code that creates the variables for one text file and then I will generalize it so that it will iterate through all files and calculate the variables automatically
+# Data Import and Joining
 
-## Data Import
+Firstly, create a vector of all files in the data folder of the github repository which includes a `readme.md` file.
 
-Select only the `.txt` files in the data folder and assign them to a vector/list.
+Then select only the `.txt` files to import into R.
+
 ```{r}
+#| label: Data_File_Selection
+
 data_files = list.files("data")
 
 data_files = data_files[str_detect(data_files, "\\.txt")]
 ```
 
-Actually import the data
+A lot of things happen in the next code chunk, to make it easier to follow the code chunk does the following:
+
+1. Creates an empty data frame (tibble) that will eventually contain the full data set.
+2. Begins a for loop to iterate through each file in the file list.
+3. Reads in a data file, labeling the columns correctly.
+4. Calculates the duration of each annotation in the `.txt` file from the onset and offset times.
+5. Adds the file name from which each row came from to each of the rows of the data frame.
+6. Separates the file name into the relevant information.
+7. Fixes the formatting of the dates and times.
+8. Adds the rows into the master data set.
 
 ```{r}
-dejuraw = as_tibble(read.table(paste0("data/", data_files[1]), sep = "\t", quote = "", col.names = c("Onset", "Offset", "Annotation")))
-```
+#| label: Create_Master_Data_Set
 
-Calculate duration of each annotation and relocate it cause its prettier and makes more sense.
+# 1
+deju_data = tibble()
 
-```{r}
-deju_rtj = dejuraw |>
+# 2
+for(i in 1:length(data_files)) {
+  
+# 3
+  dejuraw = as_tibble(read.table(paste0("data/", data_files[i]), sep = "\t", quote = "", col.names = c("Onset", "Offset", "Annotation")))
+  
+# 4
+  deju_rtj = dejuraw |>
   mutate(Duration = Offset - Onset) |>
   relocate(Duration, .after = Offset) |>
-  mutate(File_Name = data_files[1]) |>
+# 5
+  mutate(File_Name = data_files[i]) |>
   mutate(File_Name = str_remove(File_Name, "\\.txt")) |>
+# 6
   separate(col = File_Name, into = c("Recording_Date", "Recording_Start_Time", "Bands", "Treatment"), sep = "_") |>
+# 7
   mutate(Recording_Date = ymd(Recording_Date)) |>
   mutate(Recording_Start_Time = str_replace(Recording_Start_Time, "(\\d\\d)(\\d\\d)", "\\1:\\2")) |>
   mutate(Datetime = as.POSIXct(paste(Recording_Date, Recording_Start_Time, sep = " " ))) |>
   relocate(Datetime, .before = Recording_Start_Time) |>
   select(-Recording_Start_Time)
+  
+# 8
+  deju_data = bind_rows(deju_data, deju_rtj)
+}
+```
+
+# Data Cleaning
+
+Number of Songs...
+```{r}
+Songs = deju_data |>
+  filter(str_detect(Annotation, "Focalsong")) |>
+  group_by(Bands, Treatment) |>
+  summarise(Number_Of_Songs = n(), .groups = "drop")
+```
+
+Minimum Distance...
+```{r}
+deju_data |>
+  filter(str_detect(Annotation, "^\\d+m$")) |>
+  mutate(Numerical_Distance = str_remove(Annotation, "m$"))
 ```
 
