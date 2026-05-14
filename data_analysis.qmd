@@ -37,7 +37,8 @@ A lot of things happen in the next code chunk, to make it easier to follow the c
 5. Adds the file name from which each row came from to each of the rows of the data frame.
 6. Separates the file name into the relevant information.
 7. Fixes the formatting of the dates and times.
-8. Adds the rows into the master data set.
+8. Creates a column of estimated distances
+9. Adds the rows into the master data set.
 
 ```{r}
 #| label: Create_Master_Data_Set
@@ -65,9 +66,19 @@ for(i in 1:length(data_files)) {
   mutate(Recording_Start_Time = str_replace(Recording_Start_Time, "(\\d\\d)(\\d\\d)", "\\1:\\2")) |>
   mutate(Datetime = as.POSIXct(paste(Recording_Date, Recording_Start_Time, sep = " " ))) |>
   relocate(Datetime, .before = Recording_Start_Time) |>
+# 8
+  mutate(
+    Estimated_Distance = if_else(
+      str_detect(Annotation, "^\\d+m$"),
+      str_remove(Annotation, "m$"),
+      NA_character_
+    )
+  ) |>
+  fill(Estimated_Distance, .direction = "down")|>
+  mutate(Estimated_Distance = as.numeric(Estimated_Distance))|>
   select(-Recording_Start_Time)
   
-# 8
+# 9
   deju_data = bind_rows(deju_data, deju_rtj)
 }
 ```
@@ -84,8 +95,36 @@ Songs = deju_data |>
 
 Minimum Distance...
 ```{r}
+Minimum_Distance = deju_data |>
+  group_by(Bands, Treatment) |>
+  summarise(Minimum_Distance = if(all(is.na(Estimated_Distance))) {
+    NA_real_
+  } else {
+    min(Estimated_Distance, na.rm = TRUE)
+  }, .groups = "drop"
+  )
+```
+
+Trouble shooting to figure out the conditional metrics
+
+```{r}
+Time_to_10m = deju_data |>
+  group_by(Bands, Treatment) |>
+  summarise(
+    Pbstart_Time = first(Onset[Annotation == "Pbstart"]),
+    First_Time_Within_10 = if_else(any(Estimated_Distance <= 10, na.rm = TRUE),
+     first(Onset[Estimated_Distance <= 10], na_rm = TRUE),
+     NA_real_),
+    Time_To_Approach_10m = First_Time_Within_10 - Pbstart_Time,
+    .groups = "drop"
+  )
+```
+
+time spent within 10m
+
+```{r}
 deju_data |>
-  filter(str_detect(Annotation, "^\\d+m$")) |>
-  mutate(Numerical_Distance = str_remove(Annotation, "m$"))
+  group_by(Bands, Treatment) |>
+  filter(Estimated_Distance <= 10)
 ```
 
