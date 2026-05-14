@@ -5,25 +5,45 @@ format: html
 editor: source
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
 ```{r}
-1 + 1
+#| label: library_setup
+#| include: false
+
+library(tidyverse)
+library(knitr)
+library(hms)
 ```
 
-You can add options to executable code like this
+Initially, I will develop some code that creates the variables for one text file and then I will generalize it so that it will iterate through all files and calculate the variables automatically
 
+## Data Import
+
+Select only the `.txt` files in the data folder and assign them to a vector/list.
 ```{r}
-#| echo: false
-2 * 2
+data_files = list.files("data")
+
+data_files = data_files[str_detect(data_files, "\\.txt")]
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+Actually import the data
 
-HI this is kobe
+```{r}
+dejuraw = as_tibble(read.table(paste0("data/", data_files[1]), sep = "\t", quote = "", col.names = c("Onset", "Offset", "Annotation")))
+```
+
+Calculate duration of each annotation and relocate it cause its prettier and makes more sense.
+
+```{r}
+deju_rtj = dejuraw |>
+  mutate(Duration = Offset - Onset) |>
+  relocate(Duration, .after = Offset) |>
+  mutate(File_Name = data_files[1]) |>
+  mutate(File_Name = str_remove(File_Name, "\\.txt")) |>
+  separate(col = File_Name, into = c("Recording_Date", "Recording_Start_Time", "Bands", "Treatment"), sep = "_") |>
+  mutate(Recording_Date = ymd(Recording_Date)) |>
+  mutate(Recording_Start_Time = str_replace(Recording_Start_Time, "(\\d\\d)(\\d\\d)", "\\1:\\2")) |>
+  mutate(Datetime = as.POSIXct(paste(Recording_Date, Recording_Start_Time, sep = " " ))) |>
+  relocate(Datetime, .before = Recording_Start_Time) |>
+  select(-Recording_Start_Time)
+```
+
