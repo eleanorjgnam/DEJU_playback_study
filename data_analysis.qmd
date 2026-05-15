@@ -14,19 +14,23 @@ library(knitr)
 library(hms)
 ```
 
-# Data Import and Joining
+# Data Import and Joining.
+
+## File List Creation.
 
 Firstly, create a vector of all files in the data folder of the github repository which includes a `readme.md` file.
 
 Then select only the `.txt` files to import into R.
 
 ```{r}
-#| label: Data_File_Selection
+#| label: data_file_selection
 
 data_files = list.files("data")
 
 data_files = data_files[str_detect(data_files, "\\.txt")]
 ```
+
+## Master Raw Dataset Creation.
 
 A lot of things happen in the next code chunk, to make it easier to follow the code chunk does the following:
 
@@ -41,7 +45,7 @@ A lot of things happen in the next code chunk, to make it easier to follow the c
 9. Adds the rows into the master data set.
 
 ```{r}
-#| label: Create_Master_Data_Set
+#| label: create_master_raw_data_set
 
 # 1
 deju_data = tibble()
@@ -50,33 +54,33 @@ deju_data = tibble()
 for(i in 1:length(data_files)) {
   
 # 3
-  dejuraw = as_tibble(read.table(paste0("data/", data_files[i]), sep = "\t", quote = "", col.names = c("Onset", "Offset", "Annotation")))
+  dejuraw = as_tibble(read.table(paste0("data/", data_files[i]), sep = "\t", quote = "", col.names = c("onset", "offset", "annotation")))
   
 # 4
   deju_rtj = dejuraw |>
-  mutate(Duration = Offset - Onset) |>
-  relocate(Duration, .after = Offset) |>
+  mutate(duration = offset - onset) |>
+  relocate(duration, .after = offset) |>
 # 5
   mutate(File_Name = data_files[i]) |>
   mutate(File_Name = str_remove(File_Name, "\\.txt")) |>
 # 6
-  separate(col = File_Name, into = c("Recording_Date", "Recording_Start_Time", "Bands", "Treatment"), sep = "_") |>
+  separate(col = File_Name, into = c("recording_date", "recording_start_time", "bands", "treatment"), sep = "_") |>
 # 7
-  mutate(Recording_Date = ymd(Recording_Date)) |>
-  mutate(Recording_Start_Time = str_replace(Recording_Start_Time, "(\\d\\d)(\\d\\d)", "\\1:\\2")) |>
-  mutate(Datetime = as.POSIXct(paste(Recording_Date, Recording_Start_Time, sep = " " ))) |>
-  relocate(Datetime, .before = Recording_Start_Time) |>
+  mutate(recording_date = ymd(recording_date)) |>
+  mutate(recording_start_time = str_replace(recording_start_time, "(\\d\\d)(\\d\\d)", "\\1:\\2")) |>
+  mutate(datetime = as.POSIXct(paste(recording_date, recording_start_time, sep = " " ))) |>
+  relocate(datetime, .before = recording_start_time) |>
 # 8
   mutate(
-    Estimated_Distance_of_Focal_Male = if_else(
-      str_detect(Annotation, "^\\d+m$"),
-      str_remove(Annotation, "m$"),
+    estimated_distance_of_focal_male = if_else(
+      str_detect(annotation, "^\\d+m$"),
+      str_remove(annotation, "m$"),
       NA_character_
     )
   ) |>
-  fill(Estimated_Distance_of_Focal_Male, .direction = "down")|>
-  mutate(Estimated_Distance_of_Focal_Male = as.numeric(Estimated_Distance_of_Focal_Male))|>
-  select(-Recording_Start_Time)
+  fill(estimated_distance_of_focal_male, .direction = "down")|>
+  mutate(estimated_distance_of_focal_male = as.numeric(estimated_distance_of_focal_male))|>
+  select(-recording_start_time)
   
 # 9
   deju_data = bind_rows(deju_data, deju_rtj)
@@ -85,63 +89,262 @@ for(i in 1:length(data_files)) {
 
 # Data Cleaning
 
-Number of Songs...
+## Number of Songs.
+
+The following code chunk creates a new tibble that counts the number of times the focal male was heard singing during each trial. 
+
+The code does the following:
+
+1. Starts with the master raw data set.
+2. Filters for annotations where the focal male was heard singing.
+3. Groups the data by bird band combination and by treatment.
+4. Counts the number of song annotations in each trial, and ungroups the output.
+
 ```{r}
-Songs = deju_data |>
-  filter(str_detect(Annotation, "Focalsong")) |>
-  group_by(Bands, Treatment) |>
-  summarise(Number_Of_Songs = n(), .groups = "drop")
+#| label: number_of_songs
+
+# 1
+songs = deju_data |>
+# 2
+  filter(str_detect(annotation, "Focalsong")) |>
+# 3
+  group_by(bands, treatment) |>
+# 4
+  summarise(number_of_songs = n(), .groups = "drop")
 ```
 
-Minimum Distance...
+## Minimum Distance.
+
+The following code chunk calculates the closest distance that the focal male approached the speaker during each trial. 
+
+The code does the following:
+
+1. Starts with the master raw data set.
+2. Groups the data by bird band combination and treatment.
+3. Calculates the minimum estimated distance for each trial, returning a missing value instead of `Inf` if no distance was recorded during the trial.
+4. Ungroups the output.
+
 ```{r}
-Minimum_Distance = deju_data |>
-  group_by(Bands, Treatment) |>
-  summarise(Minimum_Distance = if(all(is.na(Estimated_Distance_of_Focal_Male))) {
+#| label: minimum_distance
+
+# 1
+minimum_distance = deju_data |>
+# 2
+  group_by(bands, treatment) |>
+# 3
+  summarise(minimum_distance = if(all(is.na(estimated_distance_of_focal_male))) {
     NA_real_
   } else {
-    min(Estimated_Distance_of_Focal_Male, na.rm = TRUE)
+    min(estimated_distance_of_focal_male, na.rm = TRUE)
+# 4
   }, .groups = "drop"
   )
 ```
 
-Trouble shooting to figure out the conditional metrics
+## Time to Approach Within 10 Metres
+
+The following chunk calculates how long it took for the focal male to approach within 10 metres of the speaker after the playback started.
+
+The code does the following:
+
+1. Starts with the master raw data set.
+2. Groups the data by bird band combination and treatment.
+3. Finds the onset time of the start of the playback stimulus.
+4. Finds the first time after the start of the playback stimulus that the focal male is within 10 metres.
+5. Returns a missing value if the bird is never found within 10 metres.
+6. Subtracts the playback start time from the first time that the focal male is within 10 metres.
+7. Ungroups the output. 
+
 
 ```{r}
-Time_to_10m = deju_data |>
-  group_by(Bands, Treatment) |>
+#| label: time_to_10_metres
+
+# 1
+time_to_10m = deju_data |>
+# 2
+  group_by(bands, treatment) |>
   summarise(
-    Pbstart_Time = first(Onset[Annotation == "Pbstart"]),
-    First_Time_Within_10 = if_else(any(Estimated_Distance_of_Focal_Male <= 10, na.rm = TRUE),
-     first(Onset[Estimated_Distance_of_Focal_Male <= 10], na_rm = TRUE),
+# 3
+    pbstart_time = first(onset[annotation == "Pbstart"]),
+# 4
+    first_time_within_10 = if_else(any(estimated_distance_of_focal_male <= 10, na.rm = TRUE),
+     first(onset[estimated_distance_of_focal_male <= 10], na_rm = TRUE),
+# 5
      NA_real_),
-    Time_To_Approach_10m = First_Time_Within_10 - Pbstart_Time,
+# 6
+    time_to_approach_10m = first_time_within_10 - pbstart_time,
+# 7
     .groups = "drop"
   )
 ```
 
-time spent within 10m
+## Time Spent Within 10 Metres.
+
+This chunk calculates the total amount of time the focal male spent within 10 metres of the speaker during each trial.
+
+The code does the following:
+
+1. Starts with the master raw data set.
+2. Groups the data by bird band combination and treatment.
+3. Creates columns of both the previous and the next distance annotation.
+4. Determines if the Focal Male is moving in or out of a the 10 metre range.
+5. Filters the data for only the times the focal male is moving.
+6. Creates a column identifying which direction the focal male is moving (in or out of 10 metres).
+7. Creates a column specifying the amount of time the focal male spent within 10 metres of the speaker.
+8. Sums the amount of time spent within 10 metres (if multiple instances per bird per trial).
+9. Ungroups the output. 
 
 ```{r}
-Time_Within_10_Meters = deju_data |>
-  group_by(Bands, Treatment) |>
-  mutate(Previous_Distance = lag(Estimated_Distance_of_Focal_Male)) |>
-  mutate(Next_Distance = lead(Estimated_Distance_of_Focal_Male)) |>
-  mutate(Move = if_else(Estimated_Distance_of_Focal_Male < 10 & (Previous_Distance > 10 | is.na(Previous_Distance)) | Estimated_Distance_of_Focal_Male > 10 & Previous_Distance < 10, "yes", "no")) |>
-  filter(Move == "yes") |>
-  mutate(Direction = if_else(Previous_Distance > Estimated_Distance_of_Focal_Male, "In", "Out")) |>
-  mutate(Time_Spent = if_else(Direction == "In", NA_real_, Onset - lag(Onset))) |>
-  summarise(Time_Within_10_Meters = sum(Time_Spent, na.rm = TRUE), .groups = "drop")
+#| label: time_within_ten_metres
+
+# 1
+time_within_10_metres = deju_data |>
+# 2
+  group_by(bands, treatment) |>
+# 3
+  mutate(previous_distance = lag(estimated_distance_of_focal_male)) |>
+  mutate(next_distance = lead(estimated_distance_of_focal_male)) |>
+# 4
+  mutate(move = if_else(estimated_distance_of_focal_male < 10 & (previous_distance > 10 | is.na(previous_distance)) | estimated_distance_of_focal_male > 10 & previous_distance < 10, "yes", "no")) |>
+# 5
+  filter(move == "yes") |>
+# 6
+  mutate(direction = if_else(previous_distance > estimated_distance_of_focal_male, "in", "out")) |>
+# 7
+  mutate(time_spent = if_else(direction == "in", NA_real_, onset - lag(onset))) |>
+# 8
+  summarise(time_within_10_metres = sum(time_spent, na.rm = TRUE),
+# 9
+            .groups = "drop")
 ```
 
-Number of Songs Within 10m
+## Number of Songs Within 10 Metres.
+
+The following chunk calculates how many times the focal male was heard singing while estimated to be within 10 metres of the speaker.
+
+The code does the following:
+1. Starts with the master raw data set.
+2. Groups the data by bird band combination and treatment.
+3. Filters the data for only when the focal male is estimated to be within 10 metres of the playback speaker.
+4. Filters the data for only when the focal male can be heard singing.
+5. Counts the number of song annotations within 10 metres.
+6. Ungroups the output.
 
 ```{r}
-Number_Of_Songs_Within_110_Meters = deju_data |>
-  group_by(Bands, Treatment) |>
-  filter(Estimated_Distance_of_Focal_Male < 10) |>
-  filter(str_detect(Annotation, "Focalsong")) |>
-  summarise(Number_Of_Songs_While_Within_10_Meters = length(Annotation), .groups = "drop")
+#| label: number_of_songs_within_10_metres
+
+# 1
+number_of_songs_within_10_metres = deju_data |>
+# 2
+  group_by(bands, treatment) |>
+# 3
+  filter(estimated_distance_of_focal_male < 10) |>
+# 4
+  filter(str_detect(annotation, "Focalsong")) |>
+# 5
+  summarise(number_of_songs_while_within_10_meters = length(annotation),
+# 6
+            .groups = "drop")
 ```
 
-Number of Physical...
+## Number of Physical Attacks.
+
+The following code chunk creates a new tibble that counts the number of times the focal male was seen physically attacking (flying over) the playback speaker during each trial.
+
+The code does the following:
+
+1. Starts with the master raw data set.
+2. Filters for annotations where the focal male was seen physically attacking (flying over) the playback speaker.
+3. Groups the data by bird band combination and by treatment.
+4. Counts the number of physical attack annotations in each trial, and ungroups the output.
+
+
+```{r}
+#| label: physical_attacks
+
+# 1
+physical_attacks = deju_data |>
+# 2
+  filter(str_detect(annotation, "Flyover")) |>
+# 3
+  group_by(bands, treatment) |>
+# 4
+  summarise(physical_attacks = n(), .groups = "drop")
+```
+
+## Date and Time Extraction.
+
+The following chunk creates a tibble of the dates and times of each trial.
+
+The code does the following:
+
+1. Starts with the master raw data set.
+2. Groups the data by bird bands and treatment.
+3. Creates a Column for both the date and time of each trial.
+4. Ungroups the output.
+5. Fixes the formatting of the time column.
+
+```{r}
+#| label: date_and_time
+
+# 1
+date_and_time = deju_data |>
+# 2
+  group_by(bands, treatment) |>
+# 3
+  summarise(date_of_trial = first(as_date(datetime)),
+            time_of_trial = first(format(datetime, "%H:%M:%S")),
+# 4
+            .groups = "drop") |>
+# 5
+  mutate(time_of_trial = as_hms(time_of_trial))
+  
+```
+
+
+## Creation of Compressed Dataset.
+
+The following chunk creates a compressed summary data set with one row for each bird in each treatment condition.
+
+The code does the following:
+
+1. Creates a vector of all focal male band combinations.
+2. Creates a vector of all treatment conditions.
+3. Creates every possible combination of bird and treatment.
+4. Joins the summary metrics into one compressed dataset.
+
+```{r}
+#| label: create_compressed_summary_dataset
+
+# 1
+dark_eyed_juncos = c("SRBB", "SGGR", "SBYY", "SYYR", "SBYB", "SRBY", "SGGG", "SYBB", "SBBB", "SPPY", "SRBR", "SYRP", "SRRG")
+
+# 2
+conditions = c("Control", "10", "16", "22")
+
+# 4
+temp = c()
+
+for(i in dark_eyed_juncos) {
+  for(j in conditions) {
+    temp = c(temp, paste0(i, "_", j))
+  }
+}
+
+# 5
+cleaned_summary_dataset = tibble(bird_condition = temp) |>
+  separate(col = bird_condition, into = c("bands", "treatment")) |>
+  left_join(date_and_time, by = c("bands", "treatment")) |>
+  left_join(songs, by = c("bands", "treatment")) |>
+  left_join(minimum_distance, by = c("bands", "treatment")) |>
+  left_join(time_to_10m, by = c("bands", "treatment")) |>
+  left_join(time_within_10_metres, by = c("bands", "treatment")) |>
+  left_join(number_of_songs_within_10_metres, by = c("bands", "treatment")) |>
+  left_join(physical_attacks, by = c("bands", "treatment")) |>
+  relocate(time_of_trial, .before = bands) |>
+  relocate(date_of_trial, .before = time_of_trial) |>
+  select(-c(pbstart_time, first_time_within_10))
+
+glimpse(cleaned_summary_dataset)
+```
+

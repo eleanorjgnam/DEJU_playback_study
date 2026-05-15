@@ -108,8 +108,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="data-import-and-joining" class="level1">
-<h1>Data Import and Joining</h1>
+<section id="data-import-and-joining." class="level1">
+<h1>Data Import and Joining.</h1>
+<section id="file-list-creation." class="level2">
+<h2 class="anchored" data-anchor-id="file-list-creation.">File List Creation.</h2>
 <p>Firstly, create a vector of all files in the data folder of the github repository which includes a <code>readme.md</code> file.</p>
 <p>Then select only the <code>.txt</code> files to import into R.</p>
 <div class="cell">
@@ -117,6 +119,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>data_files <span class="ot">=</span> data_files[<span class="fu">str_detect</span>(data_files, <span class="st">"</span><span class="sc">\\</span><span class="st">.txt"</span>)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
+</section>
+<section id="master-raw-dataset-creation." class="level2">
+<h2 class="anchored" data-anchor-id="master-raw-dataset-creation.">Master Raw Dataset Creation.</h2>
 <p>A lot of things happen in the next code chunk, to make it easier to follow the code chunk does the following:</p>
 <ol type="1">
 <li>Creates an empty data frame (tibble) that will eventually contain the full data set.</li>
@@ -137,96 +142,280 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">length</span>(data_files)) {</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  dejuraw <span class="ot">=</span> <span class="fu">as_tibble</span>(<span class="fu">read.table</span>(<span class="fu">paste0</span>(<span class="st">"data/"</span>, data_files[i]), <span class="at">sep =</span> <span class="st">"</span><span class="sc">\t</span><span class="st">"</span>, <span class="at">quote =</span> <span class="st">""</span>, <span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"Onset"</span>, <span class="st">"Offset"</span>, <span class="st">"Annotation"</span>)))</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  dejuraw <span class="ot">=</span> <span class="fu">as_tibble</span>(<span class="fu">read.table</span>(<span class="fu">paste0</span>(<span class="st">"data/"</span>, data_files[i]), <span class="at">sep =</span> <span class="st">"</span><span class="sc">\t</span><span class="st">"</span>, <span class="at">quote =</span> <span class="st">""</span>, <span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"onset"</span>, <span class="st">"offset"</span>, <span class="st">"annotation"</span>)))</span>
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
 <span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  deju_rtj <span class="ot">=</span> dejuraw <span class="sc">|&gt;</span></span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Duration =</span> Offset <span class="sc">-</span> Onset) <span class="sc">|&gt;</span></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(Duration, <span class="at">.after =</span> Offset) <span class="sc">|&gt;</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">duration =</span> offset <span class="sc">-</span> onset) <span class="sc">|&gt;</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(duration, <span class="at">.after =</span> offset) <span class="sc">|&gt;</span></span>
 <span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 5</span></span>
 <span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">File_Name =</span> data_files[i]) <span class="sc">|&gt;</span></span>
 <span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">File_Name =</span> <span class="fu">str_remove</span>(File_Name, <span class="st">"</span><span class="sc">\\</span><span class="st">.txt"</span>)) <span class="sc">|&gt;</span></span>
 <span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 6</span></span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">separate</span>(<span class="at">col =</span> File_Name, <span class="at">into =</span> <span class="fu">c</span>(<span class="st">"Recording_Date"</span>, <span class="st">"Recording_Start_Time"</span>, <span class="st">"Bands"</span>, <span class="st">"Treatment"</span>), <span class="at">sep =</span> <span class="st">"_"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">separate</span>(<span class="at">col =</span> File_Name, <span class="at">into =</span> <span class="fu">c</span>(<span class="st">"recording_date"</span>, <span class="st">"recording_start_time"</span>, <span class="st">"bands"</span>, <span class="st">"treatment"</span>), <span class="at">sep =</span> <span class="st">"_"</span>) <span class="sc">|&gt;</span></span>
 <span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 7</span></span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Recording_Date =</span> <span class="fu">ymd</span>(Recording_Date)) <span class="sc">|&gt;</span></span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Recording_Start_Time =</span> <span class="fu">str_replace</span>(Recording_Start_Time, <span class="st">"(</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d)(</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d)"</span>, <span class="st">"</span><span class="sc">\\</span><span class="st">1:</span><span class="sc">\\</span><span class="st">2"</span>)) <span class="sc">|&gt;</span></span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Datetime =</span> <span class="fu">as.POSIXct</span>(<span class="fu">paste</span>(Recording_Date, Recording_Start_Time, <span class="at">sep =</span> <span class="st">" "</span> ))) <span class="sc">|&gt;</span></span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(Datetime, <span class="at">.before =</span> Recording_Start_Time) <span class="sc">|&gt;</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">recording_date =</span> <span class="fu">ymd</span>(recording_date)) <span class="sc">|&gt;</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">recording_start_time =</span> <span class="fu">str_replace</span>(recording_start_time, <span class="st">"(</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d)(</span><span class="sc">\\</span><span class="st">d</span><span class="sc">\\</span><span class="st">d)"</span>, <span class="st">"</span><span class="sc">\\</span><span class="st">1:</span><span class="sc">\\</span><span class="st">2"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">datetime =</span> <span class="fu">as.POSIXct</span>(<span class="fu">paste</span>(recording_date, recording_start_time, <span class="at">sep =</span> <span class="st">" "</span> ))) <span class="sc">|&gt;</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(datetime, <span class="at">.before =</span> recording_start_time) <span class="sc">|&gt;</span></span>
 <span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="co"># 8</span></span>
 <span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">Estimated_Distance_of_Focal_Male =</span> <span class="fu">if_else</span>(</span>
-<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>      <span class="fu">str_detect</span>(Annotation, <span class="st">"^</span><span class="sc">\\</span><span class="st">d+m$"</span>),</span>
-<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>      <span class="fu">str_remove</span>(Annotation, <span class="st">"m$"</span>),</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">estimated_distance_of_focal_male =</span> <span class="fu">if_else</span>(</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>      <span class="fu">str_detect</span>(annotation, <span class="st">"^</span><span class="sc">\\</span><span class="st">d+m$"</span>),</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>      <span class="fu">str_remove</span>(annotation, <span class="st">"m$"</span>),</span>
 <span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>      <span class="cn">NA_character_</span></span>
 <span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">fill</span>(Estimated_Distance_of_Focal_Male, <span class="at">.direction =</span> <span class="st">"down"</span>)<span class="sc">|&gt;</span></span>
-<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Estimated_Distance_of_Focal_Male =</span> <span class="fu">as.numeric</span>(Estimated_Distance_of_Focal_Male))<span class="sc">|&gt;</span></span>
-<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>Recording_Start_Time)</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">fill</span>(estimated_distance_of_focal_male, <span class="at">.direction =</span> <span class="st">"down"</span>)<span class="sc">|&gt;</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">estimated_distance_of_focal_male =</span> <span class="fu">as.numeric</span>(estimated_distance_of_focal_male))<span class="sc">|&gt;</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>recording_start_time)</span>
 <span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a><span class="co"># 9</span></span>
 <span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>  deju_data <span class="ot">=</span> <span class="fu">bind_rows</span>(deju_data, deju_rtj)</span>
 <span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
+</section>
 <section id="data-cleaning" class="level1">
 <h1>Data Cleaning</h1>
-<p>Number of Songs…</p>
+<section id="number-of-songs." class="level2">
+<h2 class="anchored" data-anchor-id="number-of-songs.">Number of Songs.</h2>
+<p>The following code chunk creates a new tibble that counts the number of times the focal male was heard singing during each trial.</p>
+<p>The code does the following:</p>
+<ol type="1">
+<li>Starts with the master raw data set.</li>
+<li>Filters for annotations where the focal male was heard singing.</li>
+<li>Groups the data by bird band combination and by treatment.</li>
+<li>Counts the number of song annotations in each trial, and ungroups the output.</li>
+</ol>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>Songs <span class="ot">=</span> deju_data <span class="sc">|&gt;</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="fu">str_detect</span>(Annotation, <span class="st">"Focalsong"</span>)) <span class="sc">|&gt;</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(Bands, Treatment) <span class="sc">|&gt;</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">Number_Of_Songs =</span> <span class="fu">n</span>(), <span class="at">.groups =</span> <span class="st">"drop"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>songs <span class="ot">=</span> deju_data <span class="sc">|&gt;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="fu">str_detect</span>(annotation, <span class="st">"Focalsong"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(bands, treatment) <span class="sc">|&gt;</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">number_of_songs =</span> <span class="fu">n</span>(), <span class="at">.groups =</span> <span class="st">"drop"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>Minimum Distance…</p>
+</section>
+<section id="minimum-distance." class="level2">
+<h2 class="anchored" data-anchor-id="minimum-distance.">Minimum Distance.</h2>
+<p>The following code chunk calculates the closest distance that the focal male approached the speaker during each trial.</p>
+<p>The code does the following:</p>
+<ol type="1">
+<li>Starts with the master raw data set.</li>
+<li>Groups the data by bird band combination and treatment.</li>
+<li>Calculates the minimum estimated distance for each trial, returning a missing value instead of <code>Inf</code> if no distance was recorded during the trial.</li>
+<li>Ungroups the output.</li>
+</ol>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>Minimum_Distance <span class="ot">=</span> deju_data <span class="sc">|&gt;</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(Bands, Treatment) <span class="sc">|&gt;</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">Minimum_Distance =</span> <span class="cf">if</span>(<span class="fu">all</span>(<span class="fu">is.na</span>(Estimated_Distance_of_Focal_Male))) {</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cn">NA_real_</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">min</span>(Estimated_Distance_of_Focal_Male, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  }, <span class="at">.groups =</span> <span class="st">"drop"</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>minimum_distance <span class="ot">=</span> deju_data <span class="sc">|&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(bands, treatment) <span class="sc">|&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">minimum_distance =</span> <span class="cf">if</span>(<span class="fu">all</span>(<span class="fu">is.na</span>(estimated_distance_of_focal_male))) {</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="cn">NA_real_</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">min</span>(estimated_distance_of_focal_male, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  }, <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>  )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>Trouble shooting to figure out the conditional metrics</p>
+</section>
+<section id="time-to-approach-within-10-metres" class="level2">
+<h2 class="anchored" data-anchor-id="time-to-approach-within-10-metres">Time to Approach Within 10 Metres</h2>
+<p>The following chunk calculates how long it took for the focal male to approach within 10 metres of the speaker after the playback started.</p>
+<p>The code does the following:</p>
+<ol type="1">
+<li>Starts with the master raw data set.</li>
+<li>Groups the data by bird band combination and treatment.</li>
+<li>Finds the onset time of the start of the playback stimulus.</li>
+<li>Finds the first time after the start of the playback stimulus that the focal male is within 10 metres.</li>
+<li>Returns a missing value if the bird is never found within 10 metres.</li>
+<li>Subtracts the playback start time from the first time that the focal male is within 10 metres.</li>
+<li>Ungroups the output.</li>
+</ol>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>Time_to_10m <span class="ot">=</span> deju_data <span class="sc">|&gt;</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(Bands, Treatment) <span class="sc">|&gt;</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Pbstart_Time =</span> <span class="fu">first</span>(Onset[Annotation <span class="sc">==</span> <span class="st">"Pbstart"</span>]),</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">First_Time_Within_10 =</span> <span class="fu">if_else</span>(<span class="fu">any</span>(Estimated_Distance_of_Focal_Male <span class="sc">&lt;=</span> <span class="dv">10</span>, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>     <span class="fu">first</span>(Onset[Estimated_Distance_of_Focal_Male <span class="sc">&lt;=</span> <span class="dv">10</span>], <span class="at">na_rm =</span> <span class="cn">TRUE</span>),</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>     <span class="cn">NA_real_</span>),</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">Time_To_Approach_10m =</span> First_Time_Within_10 <span class="sc">-</span> Pbstart_Time,</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">"drop"</span></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>time_to_10m <span class="ot">=</span> deju_data <span class="sc">|&gt;</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(bands, treatment) <span class="sc">|&gt;</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">pbstart_time =</span> <span class="fu">first</span>(onset[annotation <span class="sc">==</span> <span class="st">"Pbstart"</span>]),</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">first_time_within_10 =</span> <span class="fu">if_else</span>(<span class="fu">any</span>(estimated_distance_of_focal_male <span class="sc">&lt;=</span> <span class="dv">10</span>, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>     <span class="fu">first</span>(onset[estimated_distance_of_focal_male <span class="sc">&lt;=</span> <span class="dv">10</span>], <span class="at">na_rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 5</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>     <span class="cn">NA_real_</span>),</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 6</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">time_to_approach_10m =</span> first_time_within_10 <span class="sc">-</span> pbstart_time,</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 7</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>  )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>time spent within 10m</p>
+</section>
+<section id="time-spent-within-10-metres." class="level2">
+<h2 class="anchored" data-anchor-id="time-spent-within-10-metres.">Time Spent Within 10 Metres.</h2>
+<p>This chunk calculates the total amount of time the focal male spent within 10 metres of the speaker during each trial.</p>
+<p>The code does the following:</p>
+<ol type="1">
+<li>Starts with the master raw data set.</li>
+<li>Groups the data by bird band combination and treatment.</li>
+<li>Creates columns of both the previous and the next distance annotation.</li>
+<li>Determines if the Focal Male is moving in or out of a the 10 metre range.</li>
+<li>Filters the data for only the times the focal male is moving.</li>
+<li>Creates a column identifying which direction the focal male is moving (in or out of 10 metres).</li>
+<li>Creates a column specifying the amount of time the focal male spent within 10 metres of the speaker.</li>
+<li>Sums the amount of time spent within 10 metres (if multiple instances per bird per trial).</li>
+<li>Ungroups the output.</li>
+</ol>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>deju_data <span class="sc">|&gt;</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(Bands, Treatment) <span class="sc">|&gt;</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(Estimated_Distance_of_Focal_Male <span class="sc">&lt;=</span> <span class="dv">10</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>time_within_10_metres <span class="ot">=</span> deju_data <span class="sc">|&gt;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(bands, treatment) <span class="sc">|&gt;</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">previous_distance =</span> <span class="fu">lag</span>(estimated_distance_of_focal_male)) <span class="sc">|&gt;</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">next_distance =</span> <span class="fu">lead</span>(estimated_distance_of_focal_male)) <span class="sc">|&gt;</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">move =</span> <span class="fu">if_else</span>(estimated_distance_of_focal_male <span class="sc">&lt;</span> <span class="dv">10</span> <span class="sc">&amp;</span> (previous_distance <span class="sc">&gt;</span> <span class="dv">10</span> <span class="sc">|</span> <span class="fu">is.na</span>(previous_distance)) <span class="sc">|</span> estimated_distance_of_focal_male <span class="sc">&gt;</span> <span class="dv">10</span> <span class="sc">&amp;</span> previous_distance <span class="sc">&lt;</span> <span class="dv">10</span>, <span class="st">"yes"</span>, <span class="st">"no"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 5</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(move <span class="sc">==</span> <span class="st">"yes"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 6</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">direction =</span> <span class="fu">if_else</span>(previous_distance <span class="sc">&gt;</span> estimated_distance_of_focal_male, <span class="st">"in"</span>, <span class="st">"out"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 7</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">time_spent =</span> <span class="fu">if_else</span>(direction <span class="sc">==</span> <span class="st">"in"</span>, <span class="cn">NA_real_</span>, onset <span class="sc">-</span> <span class="fu">lag</span>(onset))) <span class="sc">|&gt;</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 8</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">time_within_10_metres =</span> <span class="fu">sum</span>(time_spent, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 9</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>            <span class="at">.groups =</span> <span class="st">"drop"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="number-of-songs-within-10-metres." class="level2">
+<h2 class="anchored" data-anchor-id="number-of-songs-within-10-metres.">Number of Songs Within 10 Metres.</h2>
+<p>The following chunk calculates how many times the focal male was heard singing while estimated to be within 10 metres of the speaker.</p>
+<p>The code does the following: 1. Starts with the master raw data set. 2. Groups the data by bird band combination and treatment. 3. Filters the data for only when the focal male is estimated to be within 10 metres of the playback speaker. 4. Filters the data for only when the focal male can be heard singing. 5. Counts the number of song annotations within 10 metres. 6. Ungroups the output.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>number_of_songs_within_10_metres <span class="ot">=</span> deju_data <span class="sc">|&gt;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(bands, treatment) <span class="sc">|&gt;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(estimated_distance_of_focal_male <span class="sc">&lt;</span> <span class="dv">10</span>) <span class="sc">|&gt;</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="fu">str_detect</span>(annotation, <span class="st">"Focalsong"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 5</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">number_of_songs_while_within_10_meters =</span> <span class="fu">length</span>(annotation),</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 6</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>            <span class="at">.groups =</span> <span class="st">"drop"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="number-of-physical-attacks." class="level2">
+<h2 class="anchored" data-anchor-id="number-of-physical-attacks.">Number of Physical Attacks.</h2>
+<p>The following code chunk creates a new tibble that counts the number of times the focal male was seen physically attacking (flying over) the playback speaker during each trial.</p>
+<p>The code does the following:</p>
+<ol type="1">
+<li>Starts with the master raw data set.</li>
+<li>Filters for annotations where the focal male was seen physically attacking (flying over) the playback speaker.</li>
+<li>Groups the data by bird band combination and by treatment.</li>
+<li>Counts the number of physical attack annotations in each trial, and ungroups the output.</li>
+</ol>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>physical_attacks <span class="ot">=</span> deju_data <span class="sc">|&gt;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="fu">str_detect</span>(annotation, <span class="st">"Flyover"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(bands, treatment) <span class="sc">|&gt;</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">physical_attacks =</span> <span class="fu">n</span>(), <span class="at">.groups =</span> <span class="st">"drop"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="date-and-time-extraction." class="level2">
+<h2 class="anchored" data-anchor-id="date-and-time-extraction.">Date and Time Extraction.</h2>
+<p>The following chunk creates a tibble of the dates and times of each trial.</p>
+<p>The code does the following:</p>
+<ol type="1">
+<li>Starts with the master raw data set.</li>
+<li>Groups the data by bird bands and treatment.</li>
+<li>Creates a Column for both the date and time of each trial.</li>
+<li>Ungroups the output.</li>
+<li>Fixes the formatting of the time column.</li>
+</ol>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>date_and_time <span class="ot">=</span> deju_data <span class="sc">|&gt;</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(bands, treatment) <span class="sc">|&gt;</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">date_of_trial =</span> <span class="fu">first</span>(<span class="fu">as_date</span>(datetime)),</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>            <span class="at">time_of_trial =</span> <span class="fu">first</span>(<span class="fu">format</span>(datetime, <span class="st">"%H:%M:%S"</span>)),</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>            <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 5</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">time_of_trial =</span> <span class="fu">as_hms</span>(time_of_trial))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="creation-of-compressed-dataset." class="level2">
+<h2 class="anchored" data-anchor-id="creation-of-compressed-dataset.">Creation of Compressed Dataset.</h2>
+<p>The following chunk creates a compressed summary data set with one row for each bird in each treatment condition.</p>
+<p>The code does the following:</p>
+<ol type="1">
+<li>Creates a vector of all focal male band combinations.</li>
+<li>Creates a vector of all treatment conditions.</li>
+<li>Creates every possible combination of bird and treatment.</li>
+<li>Joins the summary metrics into one compressed dataset.</li>
+</ol>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>dark_eyed_juncos <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"SRBB"</span>, <span class="st">"SGGR"</span>, <span class="st">"SBYY"</span>, <span class="st">"SYYR"</span>, <span class="st">"SBYB"</span>, <span class="st">"SRBY"</span>, <span class="st">"SGGG"</span>, <span class="st">"SYBB"</span>, <span class="st">"SBBB"</span>, <span class="st">"SPPY"</span>, <span class="st">"SRBR"</span>, <span class="st">"SYRP"</span>, <span class="st">"SRRG"</span>)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>conditions <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"Control"</span>, <span class="st">"10"</span>, <span class="st">"16"</span>, <span class="st">"22"</span>)</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>temp <span class="ot">=</span> <span class="fu">c</span>()</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span>(i <span class="cf">in</span> dark_eyed_juncos) {</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(j <span class="cf">in</span> conditions) {</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    temp <span class="ot">=</span> <span class="fu">c</span>(temp, <span class="fu">paste0</span>(i, <span class="st">"_"</span>, j))</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 5</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>cleaned_summary_dataset <span class="ot">=</span> <span class="fu">tibble</span>(<span class="at">bird_condition =</span> temp) <span class="sc">|&gt;</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">separate</span>(<span class="at">col =</span> bird_condition, <span class="at">into =</span> <span class="fu">c</span>(<span class="st">"bands"</span>, <span class="st">"treatment"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(date_and_time, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"bands"</span>, <span class="st">"treatment"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(songs, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"bands"</span>, <span class="st">"treatment"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(minimum_distance, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"bands"</span>, <span class="st">"treatment"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(time_to_10m, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"bands"</span>, <span class="st">"treatment"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(time_within_10_metres, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"bands"</span>, <span class="st">"treatment"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(number_of_songs_within_10_metres, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"bands"</span>, <span class="st">"treatment"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(physical_attacks, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"bands"</span>, <span class="st">"treatment"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(time_of_trial, <span class="at">.before =</span> bands) <span class="sc">|&gt;</span></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(date_of_trial, <span class="at">.before =</span> time_of_trial) <span class="sc">|&gt;</span></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span><span class="fu">c</span>(pbstart_time, first_time_within_10))</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a><span class="fu">glimpse</span>(cleaned_summary_dataset)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code># A tibble: 50 × 9
-# Groups:   Bands, Treatment [1]
-   Onset Offset Duration Annotation     Recording_Date Datetime            Bands
-   &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt; &lt;chr&gt;          &lt;date&gt;         &lt;dttm&gt;              &lt;chr&gt;
- 1  150.   150.    0.620 3m             2025-05-28     2025-05-28 08:48:00 SYYR 
- 2  151.   152.    0.522 Fly            2025-05-28     2025-05-28 08:48:00 SYYR 
- 3  153.   155.    1.73  Pbstim         2025-05-28     2025-05-28 08:48:00 SYYR 
- 4  157.   163.    5.76  Aspsong_WTSP   2025-05-28     2025-05-28 08:48:00 SYYR 
- 5  157.   163.    5.76  Asppresent_WT… 2025-05-28     2025-05-28 08:48:00 SYYR 
- 6  158.   160.    1.74  Pbstim         2025-05-28     2025-05-28 08:48:00 SYYR 
- 7  163.   164.    0.960 Focaloos       2025-05-28     2025-05-28 08:48:00 SYYR 
- 8  163.   165.    1.75  Pbstim         2025-05-28     2025-05-28 08:48:00 SYYR 
- 9  168.   170.    1.76  Pbstim         2025-05-28     2025-05-28 08:48:00 SYYR 
-10  170.   174.    3.29  Aspsong_WTSP   2025-05-28     2025-05-28 08:48:00 SYYR 
-# ℹ 40 more rows
-# ℹ 2 more variables: Treatment &lt;chr&gt;, Estimated_Distance_of_Focal_Male &lt;dbl&gt;</code></pre>
+<pre><code>Rows: 52
+Columns: 10
+$ date_of_trial                          &lt;date&gt; NA, NA, NA, 2025-05-29, NA, NA…
+$ time_of_trial                          &lt;time&gt;       NA,       NA,       NA, …
+$ bands                                  &lt;chr&gt; "SRBB", "SRBB", "SRBB", "SRBB",…
+$ treatment                              &lt;chr&gt; "Control", "10", "16", "22", "C…
+$ number_of_songs                        &lt;int&gt; NA, NA, NA, NA, NA, NA, NA, NA,…
+$ minimum_distance                       &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA,…
+$ time_to_approach_10m                   &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA,…
+$ time_within_10_metres                  &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA,…
+$ number_of_songs_while_within_10_meters &lt;int&gt; NA, NA, NA, NA, NA, NA, NA, NA,…
+$ physical_attacks                       &lt;int&gt; NA, NA, NA, NA, NA, NA, NA, NA,…</code></pre>
 </div>
 </div>
+</section>
 </section>
 
 </main>
