@@ -123,26 +123,25 @@ Time_to_10m = deju_data |>
 time spent within 10m
 
 ```{r}
-deju_data |>
+Time_Within_10_Meters = deju_data |>
   group_by(Bands, Treatment) |>
-  transform(Previous_Distance = lag(Estimated_Distance_of_Focal_Male)) |>
-  transform(Next_Distance = lead(Estimated_Distance_of_Focal_Male)) |>
+  mutate(Previous_Distance = lag(Estimated_Distance_of_Focal_Male)) |>
+  mutate(Next_Distance = lead(Estimated_Distance_of_Focal_Male)) |>
   mutate(Move = if_else(Estimated_Distance_of_Focal_Male < 10 & (Previous_Distance > 10 | is.na(Previous_Distance)) | Estimated_Distance_of_Focal_Male > 10 & Previous_Distance < 10, "yes", "no")) |>
   filter(Move == "yes") |>
-  transform(Time_Spent = Onset - lag(Onset)) |>
-  summarise(sum(Time_Spent, na.rm = TRUE))
+  mutate(Direction = if_else(Previous_Distance > Estimated_Distance_of_Focal_Male, "In", "Out")) |>
+  mutate(Time_Spent = if_else(Direction == "In", NA_real_, Onset - lag(Onset))) |>
+  summarise(Time_Within_10_Meters = sum(Time_Spent, na.rm = TRUE), .groups = "drop")
 ```
 
-## Eleanor lag/lead example
+Number of Songs Within 10m
+
 ```{r}
-
-deju_data %>% 
-  filter(str_detect(Annotation, "^\\d+m$")) %>% 
-  transform(next_distance = lead(Estimated_Distance_of_Focal_Male, n = 1)) %>%
-  transform(prev_distance = lag(Estimated_Distance_of_Focal_Male, n = 1)) %>% 
-  mutate(move = if_else(Estimated_Distance_of_Focal_Male < 10 & prev_distance > 10 | Estimated_Distance_of_Focal_Male > 10 & prev_distance < 10, "yes", "no")) %>% 
-  filter(move == "yes") %>% 
-  transform(time_spent = Onset - lag(Onset, n = 1)) %>% 
-  summarize(sum(time_spent, na.rm = TRUE))
+Number_Of_Songs_Within_110_Meters = deju_data |>
+  group_by(Bands, Treatment) |>
+  filter(Estimated_Distance_of_Focal_Male < 10) |>
+  filter(str_detect(Annotation, "Focalsong")) |>
+  summarise(Number_Of_Songs_While_Within_10_Meters = length(Annotation), .groups = "drop")
 ```
 
+Number of Physical...
