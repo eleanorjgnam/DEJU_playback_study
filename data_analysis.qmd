@@ -130,3 +130,16 @@ deju_data |>
   filter(Estimated_Distance_of_Focal_Male <= 10)
 ```
 
+## Eleanor lag/lead example
+```{r}
+
+deju_data %>% 
+  filter(str_detect(Annotation, "^\\d+m$")) %>% 
+  transform(next_distance = lead(Estimated_Distance_of_Focal_Male, n = 1)) %>%
+  transform(prev_distance = lag(Estimated_Distance_of_Focal_Male, n = 1)) %>% 
+  mutate(move = if_else(Estimated_Distance_of_Focal_Male < 10 & prev_distance > 10 | Estimated_Distance_of_Focal_Male > 10 & prev_distance < 10, "yes", "no")) %>% 
+  filter(move == "yes") %>% 
+  transform(time_spent = Onset - lag(Onset, n = 1)) %>% 
+  summarize(sum(time_spent, na.rm = TRUE))
+```
+
