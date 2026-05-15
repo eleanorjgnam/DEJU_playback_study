@@ -127,7 +127,10 @@ deju_data |>
   group_by(Bands, Treatment) |>
   transform(Previous_Distance = lag(Estimated_Distance_of_Focal_Male)) |>
   transform(Next_Distance = lead(Estimated_Distance_of_Focal_Male)) |>
-  filter(Estimated_Distance_of_Focal_Male <= 10)
+  mutate(Move = if_else(Estimated_Distance_of_Focal_Male < 10 & (Previous_Distance > 10 | is.na(Previous_Distance)) | Estimated_Distance_of_Focal_Male > 10 & Previous_Distance < 10, "yes", "no")) |>
+  filter(Move == "yes") |>
+  transform(Time_Spent = Onset - lag(Onset)) |>
+  summarise(sum(Time_Spent, na.rm = TRUE))
 ```
 
 ## Eleanor lag/lead example
