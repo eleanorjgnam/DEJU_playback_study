@@ -57,19 +57,19 @@ for(i in 1:length(data_files)) {
   dejuraw = as_tibble(read.table(paste0("data/", data_files[i]), sep = "\t", quote = "", col.names = c("onset", "offset", "annotation")))
   
 # 4
-  deju_rtj = dejuraw |>
-  mutate(duration = offset - onset) |>
-  relocate(duration, .after = offset) |>
+  deju_rtj = dejuraw %>%
+  mutate(duration = offset - onset) %>%
+  relocate(duration, .after = offset) %>%
 # 5
-  mutate(File_Name = data_files[i]) |>
-  mutate(File_Name = str_remove(File_Name, "\\.txt")) |>
+  mutate(File_Name = data_files[i]) %>%
+  mutate(File_Name = str_remove(File_Name, "\\.txt")) %>%
 # 6
-  separate(col = File_Name, into = c("recording_date", "recording_start_time", "bands", "treatment"), sep = "_") |>
+  separate(col = File_Name, into = c("recording_date", "recording_start_time", "bands", "treatment"), sep = "_") %>%
 # 7
-  mutate(recording_date = ymd(recording_date)) |>
-  mutate(recording_start_time = str_replace(recording_start_time, "(\\d\\d)(\\d\\d)", "\\1:\\2")) |>
-  mutate(datetime = as.POSIXct(paste(recording_date, recording_start_time, sep = " " ))) |>
-  relocate(datetime, .before = recording_start_time) |>
+  mutate(recording_date = ymd(recording_date)) %>%
+  mutate(recording_start_time = str_replace(recording_start_time, "(\\d\\d)(\\d\\d)", "\\1:\\2")) %>%
+  mutate(datetime = as.POSIXct(paste(recording_date, recording_start_time, sep = " " ))) %>%
+  relocate(datetime, .before = recording_start_time) %>%
 # 8
   mutate(
     estimated_distance_of_focal_male = if_else(
@@ -77,9 +77,9 @@ for(i in 1:length(data_files)) {
       str_remove(annotation, "m$"),
       NA_character_
     )
-  ) |>
-  fill(estimated_distance_of_focal_male, .direction = "down")|>
-  mutate(estimated_distance_of_focal_male = as.numeric(estimated_distance_of_focal_male))|>
+  ) %>%
+  fill(estimated_distance_of_focal_male, .direction = "down")%>%
+  mutate(estimated_distance_of_focal_male = as.numeric(estimated_distance_of_focal_male))%>%
   select(-recording_start_time)
   
 # 9
@@ -104,11 +104,11 @@ The code does the following:
 #| label: number_of_songs
 
 # 1
-songs = deju_data |>
+songs = deju_data %>%
 # 2
-  filter(str_detect(annotation, "Focalsong")) |>
+  filter(str_detect(annotation, "Focalsong")) %>%
 # 3
-  group_by(bands, treatment) |>
+  group_by(bands, treatment) %>%
 # 4
   summarise(number_of_songs = n(), .groups = "drop")
 ```
@@ -128,9 +128,9 @@ The code does the following:
 #| label: minimum_distance
 
 # 1
-minimum_distance = deju_data |>
+minimum_distance = deju_data %>%
 # 2
-  group_by(bands, treatment) |>
+  group_by(bands, treatment) %>%
 # 3
   summarise(minimum_distance = if(all(is.na(estimated_distance_of_focal_male))) {
     NA_real_
@@ -160,9 +160,9 @@ The code does the following:
 #| label: time_to_10_metres
 
 # 1
-time_to_10m = deju_data |>
+time_to_10m = deju_data %>%
 # 2
-  group_by(bands, treatment) |>
+  group_by(bands, treatment) %>%
   summarise(
 # 3
     pbstart_time = first(onset[annotation == "Pbstart"]),
@@ -198,20 +198,20 @@ The code does the following:
 #| label: time_within_ten_metres
 
 # 1
-time_within_10_metres = deju_data |>
+time_within_10_metres = deju_data %>%
 # 2
-  group_by(bands, treatment) |>
+  group_by(bands, treatment) %>%
 # 3
-  mutate(previous_distance = lag(estimated_distance_of_focal_male)) |>
-  mutate(next_distance = lead(estimated_distance_of_focal_male)) |>
+  mutate(previous_distance = lag(estimated_distance_of_focal_male)) %>%
+  mutate(next_distance = lead(estimated_distance_of_focal_male)) %>%
 # 4
-  mutate(move = if_else(estimated_distance_of_focal_male < 10 & (previous_distance > 10 | is.na(previous_distance)) | estimated_distance_of_focal_male > 10 & previous_distance < 10, "yes", "no")) |>
+  mutate(move = if_else(estimated_distance_of_focal_male < 10 & (previous_distance > 10 | is.na(previous_distance)) | estimated_distance_of_focal_male > 10 & previous_distance < 10, "yes", "no")) %>%
 # 5
-  filter(move == "yes") |>
+  filter(move == "yes") %>%
 # 6
-  mutate(direction = if_else(previous_distance > estimated_distance_of_focal_male, "in", "out")) |>
+  mutate(direction = if_else(previous_distance > estimated_distance_of_focal_male, "in", "out")) %>%
 # 7
-  mutate(time_spent = if_else(direction == "in", NA_real_, onset - lag(onset))) |>
+  mutate(time_spent = if_else(direction == "in", NA_real_, onset - lag(onset))) %>%
 # 8
   summarise(time_within_10_metres = sum(time_spent, na.rm = TRUE),
 # 9
@@ -234,13 +234,13 @@ The code does the following:
 #| label: number_of_songs_within_10_metres
 
 # 1
-number_of_songs_within_10_metres = deju_data |>
+number_of_songs_within_10_metres = deju_data %>%
 # 2
-  group_by(bands, treatment) |>
+  group_by(bands, treatment) %>%
 # 3
-  filter(estimated_distance_of_focal_male < 10) |>
+  filter(estimated_distance_of_focal_male < 10) %>%
 # 4
-  filter(str_detect(annotation, "Focalsong")) |>
+  filter(str_detect(annotation, "Focalsong")) %>%
 # 5
   summarise(number_of_songs_while_within_10_meters = length(annotation),
 # 6
@@ -263,11 +263,11 @@ The code does the following:
 #| label: physical_attacks
 
 # 1
-physical_attacks = deju_data |>
+physical_attacks = deju_data %>%
 # 2
-  filter(str_detect(annotation, "Flyover")) |>
+  filter(str_detect(annotation, "Flyover")) %>%
 # 3
-  group_by(bands, treatment) |>
+  group_by(bands, treatment) %>%
 # 4
   summarise(physical_attacks = n(), .groups = "drop")
 ```
@@ -288,14 +288,14 @@ The code does the following:
 #| label: date_and_time
 
 # 1
-date_and_time = deju_data |>
+date_and_time = deju_data %>%
 # 2
-  group_by(bands, treatment) |>
+  group_by(bands, treatment) %>%
 # 3
   summarise(date_of_trial = first(as_date(datetime)),
             time_of_trial = first(format(datetime, "%H:%M:%S")),
 # 4
-            .groups = "drop") |>
+            .groups = "drop") %>%
 # 5
   mutate(time_of_trial = as_hms(time_of_trial))
   
@@ -332,17 +332,17 @@ for(i in dark_eyed_juncos) {
 }
 
 # 5
-cleaned_summary_dataset = tibble(bird_condition = temp) |>
-  separate(col = bird_condition, into = c("bands", "treatment")) |>
-  left_join(date_and_time, by = c("bands", "treatment")) |>
-  left_join(songs, by = c("bands", "treatment")) |>
-  left_join(minimum_distance, by = c("bands", "treatment")) |>
-  left_join(time_to_10m, by = c("bands", "treatment")) |>
-  left_join(time_within_10_metres, by = c("bands", "treatment")) |>
-  left_join(number_of_songs_within_10_metres, by = c("bands", "treatment")) |>
-  left_join(physical_attacks, by = c("bands", "treatment")) |>
-  relocate(time_of_trial, .before = bands) |>
-  relocate(date_of_trial, .before = time_of_trial) |>
+cleaned_summary_dataset = tibble(bird_condition = temp) %>%
+  separate(col = bird_condition, into = c("bands", "treatment")) %>%
+  left_join(date_and_time, by = c("bands", "treatment")) %>%
+  left_join(songs, by = c("bands", "treatment")) %>%
+  left_join(minimum_distance, by = c("bands", "treatment")) %>%
+  left_join(time_to_10m, by = c("bands", "treatment")) %>%
+  left_join(time_within_10_metres, by = c("bands", "treatment")) %>%
+  left_join(number_of_songs_within_10_metres, by = c("bands", "treatment")) %>%
+  left_join(physical_attacks, by = c("bands", "treatment")) %>%
+  relocate(time_of_trial, .before = bands) %>%
+  relocate(date_of_trial, .before = time_of_trial) %>%
   select(-c(pbstart_time, first_time_within_10))
 
 glimpse(cleaned_summary_dataset)
