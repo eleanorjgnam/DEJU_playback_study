@@ -61,10 +61,10 @@ for(i in 1:length(data_files)) {
   mutate(duration = offset - onset) %>%
   relocate(duration, .after = offset) %>%
 # 5
-  mutate(File_Name = data_files[i]) %>%
-  mutate(File_Name = str_remove(File_Name, "\\.txt")) %>%
+  mutate(file_name = data_files[i]) %>%
+  mutate(file_name = str_remove(file_name, "\\.txt")) %>%
 # 6
-  separate(col = File_Name, into = c("recording_date", "recording_start_time", "bands", "treatment"), sep = "_") %>%
+  separate_wider_delim(col = file_name, delim = "_", names = c("recording_date", "recording_start_time", "bands", "treatment")) %>%
 # 7
   mutate(recording_date = ymd(recording_date)) %>%
   mutate(recording_start_time = str_replace(recording_start_time, "(\\d\\d)(\\d\\d)", "\\1:\\2")) %>%
