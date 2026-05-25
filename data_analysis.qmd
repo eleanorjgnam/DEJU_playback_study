@@ -301,6 +301,28 @@ date_and_time = deju_data %>%
   
 ```
 
+## Counting the Number of Stimuli
+
+The following code chunk creates a data frame of the number of stimuli for each bird in each treatment condition.
+
+The code does the following
+
+1. Starts with the master raw data set.
+2. Groups the data by bird bands and treatment.
+3. Filters the annotation column for only the instances where the annotation is "Pbstim"
+4. Counts the number of rows.
+5. Ungroups the data.
+
+```{r}
+#| label: pbstim_count
+
+number_of_stimuli = deju_data %>%
+  group_by(bands, treatment) %>%
+  filter(str_detect(annotation, "Pbstim")) %>%
+  summarise(number_of_stimuli = n(),
+            .groups = "drop")
+```
+
 
 ## Creation of Compressed Dataset.
 
@@ -341,6 +363,7 @@ cleaned_summary_dataset = tibble(bird_condition = temp) %>%
   left_join(time_within_10_metres, by = c("bands", "treatment")) %>%
   left_join(number_of_songs_within_10_metres, by = c("bands", "treatment")) %>%
   left_join(physical_attacks, by = c("bands", "treatment")) %>%
+  left_join(number_of_stimuli, by = c("bands", "treatment")) %>%
   relocate(time_of_trial, .before = bands) %>%
   relocate(date_of_trial, .before = time_of_trial) %>%
   select(-c(pbstart_time, first_time_within_10))
