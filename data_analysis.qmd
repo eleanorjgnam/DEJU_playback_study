@@ -205,7 +205,7 @@ time_within_10_metres = deju_data %>%
   mutate(previous_distance = lag(estimated_distance_of_focal_male)) %>%
   mutate(next_distance = lead(estimated_distance_of_focal_male)) %>%
 # 4
-  mutate(move = if_else(estimated_distance_of_focal_male < 10 & (previous_distance > 10 | is.na(previous_distance)) | estimated_distance_of_focal_male > 10 & previous_distance < 10, "yes", "no")) %>%
+  mutate(move = if_else(estimated_distance_of_focal_male <= 10 & (previous_distance > 10 | is.na(previous_distance)) | estimated_distance_of_focal_male > 10 & previous_distance <= 10, "yes", "no")) %>%
 # 5
   filter(move == "yes") %>%
 # 6
@@ -316,10 +316,15 @@ The code does the following
 ```{r}
 #| label: pbstim_count
 
+# 1
 number_of_stimuli = deju_data %>%
+# 2
   group_by(bands, treatment) %>%
+# 3
   filter(str_detect(annotation, "Pbstim")) %>%
+# 4
   summarise(number_of_stimuli = n(),
+# 5
             .groups = "drop")
 ```
 
@@ -364,10 +369,61 @@ cleaned_summary_dataset = tibble(bird_condition = temp) %>%
   left_join(number_of_songs_within_10_metres, by = c("bands", "treatment")) %>%
   left_join(physical_attacks, by = c("bands", "treatment")) %>%
   left_join(number_of_stimuli, by = c("bands", "treatment")) %>%
+  mutate(treatment = recode(treatment,
+    "10" = "One SD Above Mean",
+    "16" = "Mean",
+    "22" = "One SD Below Mean"
+  )) %>%
   relocate(time_of_trial, .before = bands) %>%
   relocate(date_of_trial, .before = time_of_trial) %>%
   select(-c(pbstart_time, first_time_within_10))
-
-glimpse(cleaned_summary_dataset)
 ```
 
+# Exploring the Cleaned Data
+
+## Number of Songs Graphs
+
+::: {.panel-tabset}
+
+## Overall
+
+```{r}
+ggplot(cleaned_summary_dataset, aes(x = number_of_songs, fill = treatment)) +
+  geom_histogram(
+    binwidth = 5,
+    colour = "black",
+  ) +
+  labs(
+    x = "Number of Songs",
+    y = "Count",
+    fill = "Treatment"
+  ) +
+  scale_x_continuous(breaks = seq(0, ceiling(max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)/10)*10, 10)) +
+  theme_bw()
+```
+
+```{r}
+max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)
+```
+
+
+## Bar Chart
+
+```{r}
+ggplot(cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, fill = treatment)) +
+  geom_col(colour = "black") +
+  scale_y_continuous(breaks = seq(0, ceiling(max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)/10)*10, 10)) +
+  labs(
+    x = "Treatment",
+    y = "Number of Songs",
+    fill = "Treatment"
+  ) +
+  theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
+```
+
+```{r}
+cleaned_summary_dataset %>%
+  group_by(treatment) %>%
+  summarise(n = sum(number_of_songs, na.rm = TRUE))
+```
+:::
