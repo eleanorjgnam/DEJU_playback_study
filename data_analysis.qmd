@@ -12,6 +12,7 @@ editor: source
 library(tidyverse)
 library(knitr)
 library(hms)
+library(see)
 ```
 
 # Data Import and Joining.
@@ -427,3 +428,9 @@ cleaned_summary_dataset %>%
   summarise(n = sum(number_of_songs, na.rm = TRUE))
 ```
 :::
+
+```{r}
+ggplot(data = cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, group = bands, color = bands)) +
+  geom_point() + 
+  geom_line()
+```
