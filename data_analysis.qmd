@@ -370,10 +370,12 @@ cleaned_summary_dataset = tibble(bird_condition = temp) %>%
   left_join(number_of_songs_within_10_metres, by = c("bands", "treatment")) %>%
   left_join(physical_attacks, by = c("bands", "treatment")) %>%
   left_join(number_of_stimuli, by = c("bands", "treatment")) %>%
-  mutate(treatment = recode(treatment,
-    "10" = "One SD Above Mean",
+  mutate(treatment = recode_factor(treatment,
+    "Control" = "Control",
+    "22" = "One SD Below Mean",
     "16" = "Mean",
-    "22" = "One SD Below Mean"
+    "10" = "One SD Above Mean",
+    .ordered = TRUE
   )) %>%
   relocate(time_of_trial, .before = bands) %>%
   relocate(date_of_trial, .before = time_of_trial) %>%
@@ -386,7 +388,7 @@ cleaned_summary_dataset = tibble(bird_condition = temp) %>%
 
 ::: {.panel-tabset}
 
-## Overall
+## Overall Histogram
 
 ```{r}
 ggplot(cleaned_summary_dataset, aes(x = number_of_songs, fill = treatment)) +
@@ -400,7 +402,8 @@ ggplot(cleaned_summary_dataset, aes(x = number_of_songs, fill = treatment)) +
     fill = "Treatment"
   ) +
   scale_x_continuous(breaks = seq(0, ceiling(max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)/10)*10, 10)) +
-  theme_bw()
+  theme_bw() +
+  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))
 ```
 
 ```{r}
@@ -419,6 +422,8 @@ ggplot(cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, fill = t
     y = "Number of Songs",
     fill = "Treatment"
   ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))+
+  theme_bw() +
   theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
 ```
 
@@ -427,10 +432,107 @@ cleaned_summary_dataset %>%
   group_by(treatment) %>%
   summarise(n = sum(number_of_songs, na.rm = TRUE))
 ```
+
+## Boxplot Half Violin Plot with Jittered Data
+
+```{r}
+ggplot(cleaned_summary_dataset,
+       aes(x = treatment,y = number_of_songs)) +
+  geom_boxplot(aes(fill = treatment),
+               width = 0.2,
+               outlier.colour = "firebrick2") +
+  geom_violinhalf(aes(fill = treatment),
+                  alpha = 0.25,
+                  position = position_nudge(x = 0.10),) +
+  geom_jitter(alpha = 0.5,
+              width = 0.05) +
+  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" )) +
+  labs(
+    x = "Treatment",
+    y = "Number of Songs",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_blank())
+```
+
+
 :::
 
 ```{r}
 ggplot(data = cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, group = bands, color = bands)) +
   geom_point() + 
   geom_line()
+```
+
+## Number of Songs While Within 10 Metres Graphs
+
+::: {.panel-tabset}
+
+## Overall Histogram
+
+```{r}
+ggplot(cleaned_summary_dataset, aes(x = number_of_songs_while_within_10_meters, fill = treatment)) +
+  geom_histogram(
+    binwidth = 5,
+    colour = "black",
+  ) +
+  labs(
+    x = "Number of Songs While Within 10 Metres",
+    y = "Count",
+    fill = "Treatment"
+  ) +
+  scale_x_continuous(breaks = seq(0, ceiling(max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)/10)*10, 10)) +
+  theme_bw() +
+  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))
+```
+
+```{r}
+max(cleaned_summary_dataset$number_of_songs_while_within_10_meters, na.rm = TRUE)
+```
+
+
+## Bar Chart
+
+```{r}
+ggplot(cleaned_summary_dataset, aes(x = treatment, y = number_of_songs_while_within_10_meters, fill = treatment)) +
+  geom_col(colour = "black") +
+  scale_y_continuous(breaks = seq(0, ceiling(max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)/10)*10, 10)) +
+  labs(
+    x = "Treatment",
+    y = "Number of Songs While Within 10 Metres",
+    fill = "Treatment"
+  ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))+
+  theme_bw() +
+  theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
+```
+
+```{r}
+cleaned_summary_dataset %>%
+  group_by(treatment) %>%
+  summarise(n = sum(number_of_songs_while_within_10_meters, na.rm = TRUE))
+```
+
+## Boxplot Half Violin Plot with Jittered Data
+
+```{r}
+ggplot(cleaned_summary_dataset,
+       aes(x = treatment,y = number_of_songs_while_within_10_meters)) +
+  geom_boxplot(aes(fill = treatment),
+               width = 0.2,
+               outlier.colour = "firebrick2") +
+  geom_violinhalf(aes(fill = treatment),
+                  alpha = 0.25,
+                  position = position_nudge(x = 0.10),) +
+  geom_jitter(alpha = 0.5,
+              width = 0.05) +
+  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" )) +
+  labs(
+    x = "Treatment",
+    y = "Number of Songs While Within 10 Meteres",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_blank())
 ```
