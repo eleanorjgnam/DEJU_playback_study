@@ -414,6 +414,8 @@ max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)
 ## Bar Chart
 
 ```{r}
+#| label: bar_chart_creation
+
 ggplot(cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, fill = treatment)) +
   geom_col(colour = "black") +
   scale_y_continuous(breaks = seq(0, ceiling(max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)/10)*10, 10)) +
