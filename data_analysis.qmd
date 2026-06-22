@@ -1,5 +1,5 @@
 ---
-title: "DEJU playback study data analysis"
+title: "DEJU Playback Study Data Analysis"
 author: "Eleanor, Kobe, Liam, Dave"
 format: html
 editor: source
@@ -88,7 +88,7 @@ for(i in 1:length(data_files)) {
 }
 ```
 
-# Data Cleaning
+# Data Cleaning.
 
 ## Number of Songs.
 
@@ -142,7 +142,7 @@ minimum_distance = deju_data %>%
   )
 ```
 
-## Time to Approach Within 10 Metres
+## Time to Approach Within 10 Metres.
 
 The following chunk calculates how long it took for the focal male to approach within 10 metres of the speaker after the playback started.
 
@@ -155,7 +155,6 @@ The code does the following:
 5. Returns a missing value if the bird is never found within 10 metres.
 6. Subtracts the playback start time from the first time that the focal male is within 10 metres.
 7. Ungroups the output. 
-
 
 ```{r}
 #| label: time_to_10_metres
@@ -259,7 +258,6 @@ The code does the following:
 3. Groups the data by bird band combination and by treatment.
 4. Counts the number of physical attack annotations in each trial, and ungroups the output.
 
-
 ```{r}
 #| label: physical_attacks
 
@@ -302,7 +300,7 @@ date_and_time = deju_data %>%
   
 ```
 
-## Counting the Number of Stimuli
+## Counting the Number of Stimuli.
 
 The following code chunk creates a data frame of the number of stimuli for each bird in each treatment condition.
 
@@ -328,7 +326,6 @@ number_of_stimuli = deju_data %>%
 # 5
             .groups = "drop")
 ```
-
 
 ## Creation of Compressed Dataset.
 
@@ -382,18 +379,19 @@ cleaned_summary_dataset = tibble(bird_condition = temp) %>%
   select(-c(pbstart_time, first_time_within_10))
 ```
 
-# Exploring the Cleaned Data
+# Exploring the Cleaned Data.
 
-## Number of Songs Graphs
+## Number of Songs Graphs.
 
 ::: {.panel-tabset}
 
-## Overall Histogram
+## Overall Histogram.
 
 ```{r}
+#| label: overall_histogram
+
 ggplot(cleaned_summary_dataset, aes(x = number_of_songs, fill = treatment)) +
   geom_histogram(
-    binwidth = 5,
     colour = "black",
   ) +
   labs(
@@ -401,25 +399,25 @@ ggplot(cleaned_summary_dataset, aes(x = number_of_songs, fill = treatment)) +
     y = "Count",
     fill = "Treatment"
   ) +
-  scale_x_continuous(breaks = seq(0, ceiling(max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)/10)*10, 10)) +
   theme_bw() +
   scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))
 ```
 
 ```{r}
+#| label: maximum_number_of_songs
+#| include: false
 max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)
 ```
 
-
-## Bar Chart
+## Mean and Standard Deviation Bar Chart.
 
 ```{r}
-#| label: bar_chart_creation
+#| label: mean_bar_chart_creation
 
 ggplot(cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, fill = treatment)) +
-  geom_col(colour = "black") +
-  scale_y_continuous(breaks = seq(0, ceiling(max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)/10)*10, 10)) +
-  labs(
+  stat_summary(fun = mean, geom = "col", colour = "black") +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), geom = "errorbar", width = 0.2) +
+    labs(
     x = "Treatment",
     y = "Number of Songs",
     fill = "Treatment"
@@ -429,15 +427,54 @@ ggplot(cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, fill = t
   theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
 ```
 
+## Median and Median Absolute Deviation Bar Chart
+
 ```{r}
-cleaned_summary_dataset %>%
+#| label: median_bar_chart_creation
+
+ggplot(cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, fill = treatment)) +
+  stat_summary(fun = median, geom = "col", colour = "black") +
+  stat_summary(fun.data = function(x) {
+    med = median(x, na.rm = TRUE)
+    mad_val = mad(x, na.rm = TRUE)
+    
+    tibble(
+      y = med,
+      ymin = med - mad_val,
+      ymax = med + mad_val
+    )
+  },
+  geom = "errorbar",
+  width = 0.2) +
+  labs(
+    x = "Treatment",
+    y = "Median Number of Songs",
+    fill = "Treatment"
+  ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" )) +
+  theme_bw() +
+  theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
+```
+
+```{r}
+#| label: numbers_for_sumary_bar_charts
+
+numbers_for_summary_bar_charts = cleaned_summary_dataset %>%
   group_by(treatment) %>%
-  summarise(n = sum(number_of_songs, na.rm = TRUE))
+  summarise(n = sum(number_of_songs, na.rm = TRUE),
+            mean = mean(number_of_songs, na.rm = TRUE),
+            standard_deviation = sd(number_of_songs, na.rm = TRUE),
+            median = median(number_of_songs, na.rm = TRUE),
+            median_absolute_deviation = mad(number_of_songs, na.rm = TRUE))
+
+glimpse(numbers_for_summary_bar_charts)
 ```
 
 ## Boxplot Half Violin Plot with Jittered Data
 
 ```{r}
+#| label: boxplot_half_violin_plot_with_jittered_data
+
 ggplot(cleaned_summary_dataset,
        aes(x = treatment,y = number_of_songs)) +
   geom_boxplot(aes(fill = treatment),
@@ -458,14 +495,147 @@ ggplot(cleaned_summary_dataset,
   theme(axis.text.x = element_blank())
 ```
 
-
 :::
+
+## Line Graph
 
 ```{r}
 ggplot(data = cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, group = bands, color = bands)) +
   geom_point() + 
   geom_line()
 ```
+
+## Outlier Treatment
+
+It appears that there are some extreme outliers, to visualize them without these outliers, I am going to create a temporary data set. However, with these outliers decisions will need to be made about whether or not to actually include them
+
+```{r}
+#| label: number_of_song_outlier_removed_dataset_creation
+
+number_of_songs_no_outliers = cleaned_summary_dataset %>%
+  group_by(treatment) %>%
+  filter(
+    number_of_songs >= quantile(number_of_songs, 0.25, na.rm = TRUE) - 1.5 * IQR(number_of_songs, na.rm = TRUE),
+    number_of_songs <= quantile(number_of_songs, 0.75, na.rm = TRUE) + 1.5 * IQR(number_of_songs, na.rm = TRUE)
+  ) %>%
+  ungroup()
+```
+
+## Number of Songs Graphs No Outliers.
+
+::: {.panel-tabset}
+
+## Overall Histogram No Outliers.
+
+```{r}
+#| label: overall_histogram_no_outliers
+
+ggplot(number_of_songs_no_outliers, aes(x = number_of_songs, fill = treatment)) +
+  geom_histogram(
+    colour = "black",
+  ) +
+  labs(
+    x = "Number of Songs",
+    y = "Count",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))
+```
+
+```{r}
+#| label: maximum_number_of_songs_no_outliers
+#| include: false
+max(number_of_songs_no_outliers$number_of_songs, na.rm = TRUE)
+```
+
+## Mean and Standard Deviation Bar Chart No Outliers.
+
+```{r}
+#| label: mean_bar_chart_creation_no_outliers
+
+ggplot(number_of_songs_no_outliers, aes(x = treatment, y = number_of_songs, fill = treatment)) +
+  stat_summary(fun = mean, geom = "col", colour = "black") +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), geom = "errorbar", width = 0.2) +
+    labs(
+    x = "Treatment",
+    y = "Number of Songs",
+    fill = "Treatment"
+  ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))+
+  theme_bw() +
+  theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
+```
+
+## Median and Median Absolute Deviation Bar Chart No Outliers.
+
+```{r}
+#| label: median_bar_chart_creation_no_outliers
+
+ggplot(number_of_songs_no_outliers, aes(x = treatment, y = number_of_songs, fill = treatment)) +
+  stat_summary(fun = median, geom = "col", colour = "black") +
+  stat_summary(fun.data = function(x) {
+    med = median(x, na.rm = TRUE)
+    mad_val = mad(x, na.rm = TRUE)
+    
+    tibble(
+      y = med,
+      ymin = med - mad_val,
+      ymax = med + mad_val
+    )
+  },
+  geom = "errorbar",
+  width = 0.2) +
+  labs(
+    x = "Treatment",
+    y = "Median Number of Songs",
+    fill = "Treatment"
+  ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" )) +
+  theme_bw() +
+  theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
+```
+
+```{r}
+#| label: numbers_for_sumary_bar_charts_no_outliers
+
+numbers_for_summary_bar_charts_no_outliers = number_of_songs_no_outliers %>%
+  group_by(treatment) %>%
+  summarise(n = sum(number_of_songs, na.rm = TRUE),
+            mean = mean(number_of_songs, na.rm = TRUE),
+            standard_deviation = sd(number_of_songs, na.rm = TRUE),
+            median = median(number_of_songs, na.rm = TRUE),
+            median_absolute_deviation = mad(number_of_songs, na.rm = TRUE))
+
+glimpse(numbers_for_summary_bar_charts_no_outliers)
+```
+
+## Boxplot Half Violin Plot with Jittered Data No Outliers.
+
+```{r}
+#| label: boxplot_half_violin_plot_with_jittered_data_no_outliers
+
+ggplot(number_of_songs_no_outliers,
+       aes(x = treatment,y = number_of_songs)) +
+  geom_boxplot(aes(fill = treatment),
+               width = 0.2,
+               outlier.colour = "firebrick2") +
+  geom_violinhalf(aes(fill = treatment),
+                  alpha = 0.25,
+                  position = position_nudge(x = 0.10),) +
+  geom_jitter(alpha = 0.5,
+              width = 0.05) +
+  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" )) +
+  labs(
+    x = "Treatment",
+    y = "Number of Songs",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_blank())
+```
+
+:::
 
 ## Number of Songs While Within 10 Metres Graphs
 
