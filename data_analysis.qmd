@@ -656,13 +656,12 @@ ggplot(cleaned_summary_dataset, aes(x = number_of_songs_while_within_10_meters, 
   ) +
   scale_x_continuous(breaks = seq(0, ceiling(max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)/10)*10, 10)) +
   theme_bw() +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))
+  scale_fill_manual(values = c("#1b9e77","#d95f02", "#7570b3" ))
 ```
 
 ```{r}
 max(cleaned_summary_dataset$number_of_songs_while_within_10_meters, na.rm = TRUE)
 ```
-
 
 ## Bar Chart
 
