@@ -342,7 +342,7 @@ The code does the following:
 #| label: create_compressed_summary_dataset
 
 # 1
-dark_eyed_juncos = c("SRBB", "SGGR", "SBYY", "SYYR", "SBYB", "SRBY", "SGGG", "SYBB", "SBBB", "SPPY", "SRBR", "SYRP", "SRRG")
+dark_eyed_juncos = c("SRBB", "SGGR", "SBYY", "SYYR", "SBYB", "SRBY", "SGGG", "SYBB", "SBBB", "SRBR", "SRRG")
 
 # 2
 conditions = c("Control", "10", "16", "22")
