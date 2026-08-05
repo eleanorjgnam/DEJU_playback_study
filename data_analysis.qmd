@@ -708,3 +708,33 @@ ggplot(cleaned_summary_dataset,
   theme_bw() +
   theme(axis.text.x = element_blank())
 ```
+
+# Weather Variables Cleaning
+```{r}
+file_list = list.files("SJIA_weather_data")
+
+airport_weather_data = as_tibble(read.csv(paste0("SJIA_weather_data/", file_list[1])))
+
+for(i in 2:length(file_list)) {
+  temp_weather_data = as_tibble(read.csv(paste0("SJIA_weather_data/", file_list[i])))
+  
+airport_weather_data = bind_rows(airport_weather_data, temp_weather_data)
+}
+
+master_weather_data = airport_weather_data %>%
+  mutate(datetime = as_datetime(Date.Time..LST., format = "%Y-%m-%d %H:%M"),
+         datetime = force_tz(datetime, tzone = "America/St_Johns")) %>%
+  transmute(
+    datetime,
+    temperature = Temp...C.,
+    station_pressure = Stn.Press..kPa.,
+    barometric_pressure = station_pressure * ((1 - (0.0065 * 140.50) / (temperature + 273.15 + (0.0065 * 140.50)))^-5.257),
+    wind_speed = Wind.Spd..km.h.,
+    wind_chill = Wind.Chill,
+    relative_humidity = Rel.Hum....,
+    dew_point = Dew.Point.Temp...C.,
+  )
+```
+
+
+
