@@ -721,7 +721,7 @@ for(i in 2:length(file_list)) {
 airport_weather_data = bind_rows(airport_weather_data, temp_weather_data)
 }
 
-master_weather_data = airport_weather_data %>%
+short_weather_data = airport_weather_data %>%
   mutate(datetime = as_datetime(Date.Time..LST., format = "%Y-%m-%d %H:%M"),
          datetime = force_tz(datetime, tzone = "America/St_Johns")) %>%
   transmute(
@@ -733,8 +733,24 @@ master_weather_data = airport_weather_data %>%
     wind_chill = Wind.Chill,
     relative_humidity = Rel.Hum....,
     dew_point = Dew.Point.Temp...C.,
-  )
+  ) %>% 
+  select(datetime, temperature, wind_speed)
+
 ```
+
+## Joining weather variables to associated trials
+
+```{r}
+cleaned_summary_dataset <- cleaned_summary_dataset %>% 
+  filter(!is.na(date_of_trial)) %>% 
+  mutate(datetime = ymd_hms(paste(date_of_trial, time_of_trial)),
+         datetime = force_tz(datetime, tzone = "America/St_Johns")) %>%
+  mutate(closest_datetime = floor_date(datetime, unit = "hour") + minutes(30)) %>% 
+  left_join(short_weather_data, by = c("closest_datetime" = "datetime")) %>% 
+  select(-ends_with(".y"), -ends_with(".x"))
+
+```
+
 
 
 
