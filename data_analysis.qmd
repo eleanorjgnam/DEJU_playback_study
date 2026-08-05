@@ -751,6 +751,21 @@ cleaned_summary_dataset <- cleaned_summary_dataset %>%
 
 ```
 
+# Trying to Figure out the overlapping calls
 
+```{r}
+overlap = deju_data %>%
+  mutate(comparison_onset = if_else(str_detect(annotation, "Pbstim"), onset, NA_real_),
+         comparison_onset_reverse = comparison_onset,
+         comparison_offset = if_else(str_detect(annotation, "Pbstim"), offset, NA_real_),
+         comparison_offset_reverse = comparison_offset) %>%
+  fill(comparison_onset, comparison_offset, .direction = "down") %>%
+  fill(comparison_onset_reverse, comparison_offset_reverse, .direction = "up") %>%
+  mutate(focalsong_onset = if_else(str_detect(annotation, "Focalsong"), onset, NA_real_),
+         focalsong_offset = if_else(str_detect(annotation, "Focalsong"), offset, NA_real_),
+         overlap = if_else(focalsong_onset >= comparison_onset & focalsong_onset <= comparison_offset, "overlap", NA_character_),
+         reverse_overlap = if_else(focalsong_offset >= comparison_onset_reverse & focalsong_offset <= comparison_offset_reverse, "overlap", NA_character_)) 
+```
 
+based on what the results of the above code chunk it seems to look like DEJU intentionally do not overlap there songs. some more data analysis should be run to confirm this but preliminary results based off of some what was produced in the data frame suggest that Junco overlapping stimulus is ten times less likely than stimulus overlapping Junco.
 
