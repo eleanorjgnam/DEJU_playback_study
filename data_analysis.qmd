@@ -1,13 +1,18 @@
 ---
 title: "DEJU Playback Study Data Analysis"
 author: "Eleanor, Kobe, Liam, Dave"
-format: html
-embed-resources: true
+format:
+  html:
+    embed-resources: true
 editor: source
 ---
 
+# Setup
+
+Load the packages used for data wrangling, date-time handling, summaries, and plotting.
+
 ```{r}
-#| label: library_setup
+#| label: setup_libraries
 #| include: false
 
 library(tidyverse)
@@ -16,709 +21,254 @@ library(hms)
 library(see)
 ```
 
-# Data Import and Joining.
+# Build the Annotation-Level Dataset
 
-## File List Creation.
+## Identify Annotation Files
 
-Firstly, create a vector of all files in the data folder of the github repository which includes a `readme.md` file.
-
-Then select only the `.txt` files to import into R.
+List the `.txt` annotation files in the repositories `data` directory.
 
 ```{r}
 #| label: data_file_selection
 
 data_files = list.files("data")
-
-data_files = data_files[str_detect(data_files, "\\.txt")]
+data_files = data_files[str_detect(data_files, "\\.txt$")]
 ```
 
-## Master Raw Dataset Creation.
+## Import and Combine Annotation Files
 
-A lot of things happen in the next code chunk, to make it easier to follow the code chunk does the following:
-
-1. Creates an empty data frame (tibble) that will eventually contain the full data set.
-2. Begins a for loop to iterate through each file in the file list.
-3. Reads in a data file, labeling the columns correctly.
-4. Calculates the duration of each annotation in the `.txt` file from the onset and offset times.
-5. Adds the file name from which each row came from to each of the rows of the data frame.
-6. Separates the file name into the relevant information.
-7. Fixes the formatting of the dates and times.
-8. Creates a column of estimated distances
-9. Adds the rows into the master data set.
+Import each annotation file, calculate annotation duration, extract trial metadata, from the file name, and carry forward the most recent focal-male distance estimate.
 
 ```{r}
-#| label: create_master_raw_data_set
+#| label: build_annotation_dataset
 
-# 1
+# Create an empty data frame (tibble) that will eventually contain the full data set.
 deju_data = tibble()
 
-# 2
+# Begin a for loop to iterate through each file in the file list.
 for(i in 1:length(data_files)) {
   
-# 3
-  dejuraw = as_tibble(read.table(paste0("data/", data_files[i]), sep = "\t", quote = "", col.names = c("onset", "offset", "annotation")))
-  
-# 4
-  deju_rtj = dejuraw %>%
-  mutate(duration = offset - onset) %>%
-  relocate(duration, .after = offset) %>%
-# 5
-  mutate(file_name = data_files[i]) %>%
-  mutate(file_name = str_remove(file_name, "\\.txt")) %>%
-# 6
-  separate_wider_delim(col = file_name, delim = "_", names = c("recording_date", "recording_start_time", "bands", "treatment")) %>%
-# 7
-  mutate(recording_date = ymd(recording_date)) %>%
-  mutate(recording_start_time = str_replace(recording_start_time, "(\\d\\d)(\\d\\d)", "\\1:\\2")) %>%
-  mutate(datetime = as.POSIXct(paste(recording_date, recording_start_time, sep = " " ))) %>%
-  relocate(datetime, .before = recording_start_time) %>%
-# 8
-  mutate(
-    estimated_distance_of_focal_male = if_else(
-      str_detect(annotation, "^\\d+m$"),
-      str_remove(annotation, "m$"),
-      NA_character_
+# Read in a data file, labeling the columns correctly.
+  dejuraw = as_tibble(
+    read.table(
+      paste0("data/", data_files[i]),
+      sep = "\t",
+      quote = "",
+      col.names = c("onset", "offset", "annotation")
+      )
     )
-  ) %>%
-  fill(estimated_distance_of_focal_male, .direction = "down")%>%
-  mutate(estimated_distance_of_focal_male = as.numeric(estimated_distance_of_focal_male))%>%
-  select(-recording_start_time)
   
-# 9
+  deju_rtj = dejuraw %>%
+# Calculate annotation duration
+    mutate(duration = offset - onset) %>%
+    relocate(duration, .after = offset) %>%
+# Add the source file name and extract trial metadata.
+    mutate(file_name = str_remove(data_files[i], "\\.txt$")) %>%
+    separate_wider_delim(
+      col = file_name,
+      delim = "_",
+      names = c("recording_date", "recording_start_time", "bands", "treatment")) %>%
+# Format trial date and start time.
+    mutate(recording_date = ymd(recording_date),
+      recording_start_time = str_replace(
+        recording_start_time,
+        "(\\d\\d)(\\d\\d)",
+        "\\1:\\2"),
+      datetime = as.POSIXct(
+        paste(recording_date, recording_start_time),
+        tz = "America/St_Johns"
+        )
+      ) %>%
+    relocate(datetime, .before = recording_start_time) %>%
+# Extract and carry forward focal-male distance estimates.
+    mutate(
+      estimated_distance_of_focal_male = if_else(
+        str_detect(annotation, "^\\d+m$"),
+        str_remove(annotation, "m$"),
+        NA_character_
+      )
+    ) %>%
+    fill(estimated_distance_of_focal_male, .direction = "down") %>%
+    mutate(estimated_distance_of_focal_male = as.numeric(estimated_distance_of_focal_male)) %>%
+    select(-recording_start_time)
+  
   deju_data = bind_rows(deju_data, deju_rtj)
 }
 ```
 
-# Data Cleaning.
+# Derive Trial-Level Variables
 
-## Number of Songs.
+Each section below reduces the annotation-level data to one response or trial descriptor per bird per treatment.
 
-The following code chunk creates a new tibble that counts the number of times the focal male was heard singing during each trial. 
+## Trial Date and Time
 
-The code does the following:
-
-1. Starts with the master raw data set.
-2. Filters for annotations where the focal male was heard singing.
-3. Groups the data by bird band combination and by treatment.
-4. Counts the number of song annotations in each trial, and ungroups the output.
+Extract the date and start time associated with each trial.
 
 ```{r}
-#| label: number_of_songs
+#| label: summarise_trial_date_and_time
 
-# 1
-songs = deju_data %>%
-# 2
-  filter(str_detect(annotation, "Focalsong")) %>%
-# 3
-  group_by(bands, treatment) %>%
-# 4
-  summarise(number_of_songs = n(), .groups = "drop")
-```
-
-## Minimum Distance.
-
-The following code chunk calculates the closest distance that the focal male approached the speaker during each trial. 
-
-The code does the following:
-
-1. Starts with the master raw data set.
-2. Groups the data by bird band combination and treatment.
-3. Calculates the minimum estimated distance for each trial, returning a missing value instead of `Inf` if no distance was recorded during the trial.
-4. Ungroups the output.
-
-```{r}
-#| label: minimum_distance
-
-# 1
-minimum_distance = deju_data %>%
-# 2
-  group_by(bands, treatment) %>%
-# 3
-  summarise(minimum_distance = if(all(is.na(estimated_distance_of_focal_male))) {
-    NA_real_
-  } else {
-    min(estimated_distance_of_focal_male, na.rm = TRUE)
-# 4
-  }, .groups = "drop"
-  )
-```
-
-## Time to Approach Within 10 Metres.
-
-The following chunk calculates how long it took for the focal male to approach within 10 metres of the speaker after the playback started.
-
-The code does the following:
-
-1. Starts with the master raw data set.
-2. Groups the data by bird band combination and treatment.
-3. Finds the onset time of the start of the playback stimulus.
-4. Finds the first time after the start of the playback stimulus that the focal male is within 10 metres.
-5. Returns a missing value if the bird is never found within 10 metres.
-6. Subtracts the playback start time from the first time that the focal male is within 10 metres.
-7. Ungroups the output. 
-
-```{r}
-#| label: time_to_10_metres
-
-# 1
-time_to_10m = deju_data %>%
-# 2
+date_and_time = deju_data %>%
   group_by(bands, treatment) %>%
   summarise(
-# 3
-    pbstart_time = first(onset[annotation == "Pbstart"]),
-# 4
-    first_time_within_10 = if_else(any(estimated_distance_of_focal_male <= 10, na.rm = TRUE),
-     first(onset[estimated_distance_of_focal_male <= 10], na_rm = TRUE),
-# 5
-     NA_real_),
-# 6
-    time_to_approach_10m = first_time_within_10 - pbstart_time,
-# 7
-    .groups = "drop"
-  )
-```
-
-## Time Spent Within 10 Metres.
-
-This chunk calculates the total amount of time the focal male spent within 10 metres of the speaker during each trial.
-
-The code does the following:
-
-1. Starts with the master raw data set.
-2. Groups the data by bird band combination and treatment.
-3. Creates columns of both the previous and the next distance annotation.
-4. Determines if the Focal Male is moving in or out of a the 10 metre range.
-5. Filters the data for only the times the focal male is moving.
-6. Creates a column identifying which direction the focal male is moving (in or out of 10 metres).
-7. Creates a column specifying the amount of time the focal male spent within 10 metres of the speaker.
-8. Sums the amount of time spent within 10 metres (if multiple instances per bird per trial).
-9. Ungroups the output. 
-
-```{r}
-#| label: time_within_ten_metres
-
-# 1
-time_within_10_metres = deju_data %>%
-# 2
-  group_by(bands, treatment) %>%
-# 3
-  mutate(previous_distance = lag(estimated_distance_of_focal_male)) %>%
-  mutate(next_distance = lead(estimated_distance_of_focal_male)) %>%
-# 4
-  mutate(move = if_else(estimated_distance_of_focal_male <= 10 & (previous_distance > 10 | is.na(previous_distance)) | estimated_distance_of_focal_male > 10 & previous_distance <= 10, "yes", "no")) %>%
-# 5
-  filter(move == "yes") %>%
-# 6
-  mutate(direction = if_else(previous_distance > estimated_distance_of_focal_male, "in", "out")) %>%
-# 7
-  mutate(time_spent = if_else(direction == "in", NA_real_, onset - lag(onset))) %>%
-# 8
-  summarise(time_within_10_metres = sum(time_spent, na.rm = TRUE),
-# 9
-            .groups = "drop")
-```
-
-## Number of Songs Within 10 Metres.
-
-The following chunk calculates how many times the focal male was heard singing while estimated to be within 10 metres of the speaker.
-
-The code does the following:
-1. Starts with the master raw data set.
-2. Groups the data by bird band combination and treatment.
-3. Filters the data for only when the focal male is estimated to be within 10 metres of the playback speaker.
-4. Filters the data for only when the focal male can be heard singing.
-5. Counts the number of song annotations within 10 metres.
-6. Ungroups the output.
-
-```{r}
-#| label: number_of_songs_within_10_metres
-
-# 1
-number_of_songs_within_10_metres = deju_data %>%
-# 2
-  group_by(bands, treatment) %>%
-# 3
-  filter(estimated_distance_of_focal_male < 10) %>%
-# 4
-  filter(str_detect(annotation, "Focalsong")) %>%
-# 5
-  summarise(number_of_songs_while_within_10_meters = length(annotation),
-# 6
-            .groups = "drop")
-```
-
-## Number of Physical Attacks.
-
-The following code chunk creates a new tibble that counts the number of times the focal male was seen physically attacking (flying over) the playback speaker during each trial.
-
-The code does the following:
-
-1. Starts with the master raw data set.
-2. Filters for annotations where the focal male was seen physically attacking (flying over) the playback speaker.
-3. Groups the data by bird band combination and by treatment.
-4. Counts the number of physical attack annotations in each trial, and ungroups the output.
-
-```{r}
-#| label: physical_attacks
-
-# 1
-physical_attacks = deju_data %>%
-# 2
-  filter(str_detect(annotation, "Flyover")) %>%
-# 3
-  group_by(bands, treatment) %>%
-# 4
-  summarise(physical_attacks = n(), .groups = "drop")
-```
-
-## Date and Time Extraction.
-
-The following chunk creates a tibble of the dates and times of each trial.
-
-The code does the following:
-
-1. Starts with the master raw data set.
-2. Groups the data by bird bands and treatment.
-3. Creates a Column for both the date and time of each trial.
-4. Ungroups the output.
-5. Fixes the formatting of the time column.
-
-```{r}
-#| label: date_and_time
-
-# 1
-date_and_time = deju_data %>%
-# 2
-  group_by(bands, treatment) %>%
-# 3
-  summarise(date_of_trial = first(as_date(datetime)),
-            time_of_trial = first(format(datetime, "%H:%M:%S")),
-# 4
-            .groups = "drop") %>%
-# 5
+    date_of_trial = first(as_date(datetime)),
+    time_of_trial = first(format(datetime, "%H:%M:%S")),
+    .groups = "drop") %>%
   mutate(time_of_trial = as_hms(time_of_trial))
   
 ```
 
-## Counting the Number of Stimuli.
+## Number of Songs
 
-The following code chunk creates a data frame of the number of stimuli for each bird in each treatment condition.
-
-The code does the following
-
-1. Starts with the master raw data set.
-2. Groups the data by bird bands and treatment.
-3. Filters the annotation column for only the instances where the annotation is "Pbstim"
-4. Counts the number of rows.
-5. Ungroups the data.
+Count focal-male song annotations in each trial.
 
 ```{r}
-#| label: pbstim_count
+#| label: summarise_number_of_songs
 
-# 1
-number_of_stimuli = deju_data %>%
-# 2
+songs = deju_data %>%
+  filter(str_detect(annotation, "Focalsong")) %>%
   group_by(bands, treatment) %>%
-# 3
+  summarise(number_of_songs = n(), .groups = "drop")
+```
+
+## Minimum Distance
+
+Calculate the closest recorded distance to the playback speaker in each trial. Trials without a distance estimate remain `NA`.
+
+```{r}
+#| label: summarise_minimum_distance
+
+minimum_distance = deju_data %>%
+  group_by(bands, treatment) %>%
+  summarise(
+    minimum_distance = if(all(is.na(estimated_distance_of_focal_male))) {
+      NA_real_
+  } else {
+    min(estimated_distance_of_focal_male, na.rm = TRUE)
+  },
+  .groups = "drop"
+  )
+```
+
+## Time to Approach Within 10 Metres
+
+Calculate elapsed time from playback start to the first recorded distance at or within 10 metres.
+
+```{r}
+#| label: summarise_time_to_10_metres
+
+time_to_10m = deju_data %>%
+  group_by(bands, treatment) %>%
+  summarise(
+    pbstart_time = first(onset[annotation == "Pbstart"]),
+    first_time_within_10 = if_else(any(estimated_distance_of_focal_male <= 10, na.rm = TRUE),
+     first(onset[estimated_distance_of_focal_male <= 10], na_rm = TRUE),
+     NA_real_),
+    time_to_approach_10m = first_time_within_10 - pbstart_time,
+    .groups = "drop"
+  )
+```
+
+## Time Spent Within 10 Metres
+
+Estimate the total time spent within 10 metres from successive crossings of the 10 metre boundary
+
+```{r}
+#| label: summarise_time_within_ten_metres
+
+time_within_10_metres = deju_data %>%
+  group_by(bands, treatment) %>%
+  mutate(
+    previous_distance = lag(estimated_distance_of_focal_male),
+    next_distance = lead(estimated_distance_of_focal_male),
+    move = if_else(
+      estimated_distance_of_focal_male <= 10 &
+        (previous_distance > 10 | is.na(previous_distance)) |
+        estimated_distance_of_focal_male > 10 & previous_distance <= 10,
+      "yes",
+      "no"
+      )
+    ) %>%
+  filter(move == "yes") %>%
+  mutate(
+    direction = if_else(
+      previous_distance > estimated_distance_of_focal_male,
+      "in",
+      "out"
+      ),
+    time_spent = if_else(direction == "in", NA_real_, onset - lag(onset))
+    ) %>%
+  summarise(
+    time_within_10_metres = sum(time_spent, na.rm = TRUE),
+    .groups = "drop"
+    )
+```
+
+## Number of Songs Within 10 Metres
+
+Count focal-male song annotations made while the current distance estimate is less than 10 metres.
+
+```{r}
+#| label: summarise_number_of_songs_within_10_metres
+
+number_of_songs_within_10_metres = deju_data %>%
+  group_by(bands, treatment) %>%
+  filter(estimated_distance_of_focal_male < 10) %>%
+  filter(str_detect(annotation, "Focalsong")) %>%
+  summarise(
+    number_of_songs_while_within_10_meters = n(),
+    .groups = "drop"
+    )
+```
+
+## Number of Physical Attacks
+
+Count flyover annotations as physical attacks in each trial.
+
+```{r}
+#| label: summarise_physical_attacks
+
+physical_attacks = deju_data %>%
+  filter(str_detect(annotation, "Flyover")) %>%
+  group_by(bands, treatment) %>%
+  summarise(physical_attacks = n(), .groups = "drop")
+```
+
+## Number of Playback Stimuli
+
+Count playback-stimulus annotations in each trial.
+
+```{r}
+#| label: summarise_stimulus_count
+
+number_of_stimuli = deju_data %>%
+  group_by(bands, treatment) %>%
   filter(str_detect(annotation, "Pbstim")) %>%
-# 4
-  summarise(number_of_stimuli = n(),
-# 5
-            .groups = "drop")
+  summarise(number_of_stimuli = n(), .groups = "drop")
 ```
 
-## Creation of Compressed Dataset.
+# Prepare Weather Covariates
 
-The following chunk creates a compressed summary data set with one row for each bird in each treatment condition.
+## Import and Clean Weather Data
 
-The code does the following:
-
-1. Creates a vector of all focal male band combinations.
-2. Creates a vector of all treatment conditions.
-3. Creates every possible combination of bird and treatment.
-4. Joins the summary metrics into one compressed dataset.
+Combine the airport weather files, standardize time stamps, and retain temperature and wind speed for the current analysis data set.
 
 ```{r}
-#| label: create_compressed_summary_dataset
+#| label: import_weather_data
 
-# 1
-dark_eyed_juncos = c("SRBB", "SGGR", "SBYY", "SYYR", "SBYB", "SRBY", "SGGG", "SYBB", "SBBB", "SRBR", "SRRG")
-
-# 2
-conditions = c("Control", "10", "16", "22")
-
-# 4
-temp = c()
-
-for(i in dark_eyed_juncos) {
-  for(j in conditions) {
-    temp = c(temp, paste0(i, "_", j))
-  }
-}
-
-# 5
-cleaned_summary_dataset = tibble(bird_condition = temp) %>%
-  separate(col = bird_condition, into = c("bands", "treatment")) %>%
-  left_join(date_and_time, by = c("bands", "treatment")) %>%
-  left_join(songs, by = c("bands", "treatment")) %>%
-  left_join(minimum_distance, by = c("bands", "treatment")) %>%
-  left_join(time_to_10m, by = c("bands", "treatment")) %>%
-  left_join(time_within_10_metres, by = c("bands", "treatment")) %>%
-  left_join(number_of_songs_within_10_metres, by = c("bands", "treatment")) %>%
-  left_join(physical_attacks, by = c("bands", "treatment")) %>%
-  left_join(number_of_stimuli, by = c("bands", "treatment")) %>%
-  mutate(treatment = recode_factor(treatment,
-    "Control" = "Control",
-    "22" = "One SD Below Mean",
-    "16" = "Mean",
-    "10" = "One SD Above Mean",
-    .ordered = TRUE
-  )) %>%
-  relocate(time_of_trial, .before = bands) %>%
-  relocate(date_of_trial, .before = time_of_trial) %>%
-  select(-c(pbstart_time, first_time_within_10))
-```
-
-# Exploring the Cleaned Data.
-
-## Number of Songs Graphs.
-
-::: {.panel-tabset}
-
-## Overall Histogram.
-
-```{r}
-#| label: overall_histogram
-
-ggplot(cleaned_summary_dataset, aes(x = number_of_songs, fill = treatment)) +
-  geom_histogram(
-    colour = "black",
-  ) +
-  labs(
-    x = "Number of Songs",
-    y = "Count",
-    fill = "Treatment"
-  ) +
-  theme_bw() +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))
-```
-
-```{r}
-#| label: maximum_number_of_songs
-#| include: false
-max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)
-```
-
-## Mean and Standard Deviation Bar Chart.
-
-```{r}
-#| label: mean_bar_chart_creation
-
-ggplot(cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, fill = treatment)) +
-  stat_summary(fun = mean, geom = "col", colour = "black") +
-  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), geom = "errorbar", width = 0.2) +
-    labs(
-    x = "Treatment",
-    y = "Number of Songs",
-    fill = "Treatment"
-  ) +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))+
-  theme_bw() +
-  theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
-```
-
-## Median and Median Absolute Deviation Bar Chart
-
-```{r}
-#| label: median_bar_chart_creation
-
-ggplot(cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, fill = treatment)) +
-  stat_summary(fun = median, geom = "col", colour = "black") +
-  stat_summary(fun.data = function(x) {
-    med = median(x, na.rm = TRUE)
-    mad_val = mad(x, na.rm = TRUE)
-    
-    tibble(
-      y = med,
-      ymin = med - mad_val,
-      ymax = med + mad_val
-    )
-  },
-  geom = "errorbar",
-  width = 0.2) +
-  labs(
-    x = "Treatment",
-    y = "Median Number of Songs",
-    fill = "Treatment"
-  ) +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" )) +
-  theme_bw() +
-  theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
-```
-
-```{r}
-#| label: numbers_for_sumary_bar_charts
-
-numbers_for_summary_bar_charts = cleaned_summary_dataset %>%
-  group_by(treatment) %>%
-  summarise(n = sum(number_of_songs, na.rm = TRUE),
-            mean = mean(number_of_songs, na.rm = TRUE),
-            standard_deviation = sd(number_of_songs, na.rm = TRUE),
-            median = median(number_of_songs, na.rm = TRUE),
-            median_absolute_deviation = mad(number_of_songs, na.rm = TRUE))
-
-glimpse(numbers_for_summary_bar_charts)
-```
-
-## Boxplot Half Violin Plot with Jittered Data
-
-```{r}
-#| label: boxplot_half_violin_plot_with_jittered_data
-
-ggplot(cleaned_summary_dataset,
-       aes(x = treatment,y = number_of_songs)) +
-  geom_boxplot(aes(fill = treatment),
-               width = 0.2,
-               outlier.colour = "firebrick2") +
-  geom_violinhalf(aes(fill = treatment),
-                  alpha = 0.25,
-                  position = position_nudge(x = 0.10),) +
-  geom_jitter(alpha = 0.5,
-              width = 0.05) +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" )) +
-  labs(
-    x = "Treatment",
-    y = "Number of Songs",
-    fill = "Treatment"
-  ) +
-  theme_bw() +
-  theme(axis.text.x = element_blank())
-```
-
-:::
-
-## Line Graph
-
-```{r}
-ggplot(data = cleaned_summary_dataset, aes(x = treatment, y = number_of_songs, group = bands, color = bands)) +
-  geom_point() + 
-  geom_line()
-```
-
-## Outlier Treatment
-
-It appears that there are some extreme outliers, to visualize them without these outliers, I am going to create a temporary data set. However, with these outliers decisions will need to be made about whether or not to actually include them
-
-```{r}
-#| label: number_of_song_outlier_removed_dataset_creation
-
-number_of_songs_no_outliers = cleaned_summary_dataset %>%
-  group_by(treatment) %>%
-  filter(
-    number_of_songs >= quantile(number_of_songs, 0.25, na.rm = TRUE) - 1.5 * IQR(number_of_songs, na.rm = TRUE),
-    number_of_songs <= quantile(number_of_songs, 0.75, na.rm = TRUE) + 1.5 * IQR(number_of_songs, na.rm = TRUE)
-  ) %>%
-  ungroup()
-```
-
-## Number of Songs Graphs No Outliers.
-
-::: {.panel-tabset}
-
-## Overall Histogram No Outliers.
-
-```{r}
-#| label: overall_histogram_no_outliers
-
-ggplot(number_of_songs_no_outliers, aes(x = number_of_songs, fill = treatment)) +
-  geom_histogram(
-    colour = "black",
-  ) +
-  labs(
-    x = "Number of Songs",
-    y = "Count",
-    fill = "Treatment"
-  ) +
-  theme_bw() +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))
-```
-
-```{r}
-#| label: maximum_number_of_songs_no_outliers
-#| include: false
-max(number_of_songs_no_outliers$number_of_songs, na.rm = TRUE)
-```
-
-## Mean and Standard Deviation Bar Chart No Outliers.
-
-```{r}
-#| label: mean_bar_chart_creation_no_outliers
-
-ggplot(number_of_songs_no_outliers, aes(x = treatment, y = number_of_songs, fill = treatment)) +
-  stat_summary(fun = mean, geom = "col", colour = "black") +
-  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), geom = "errorbar", width = 0.2) +
-    labs(
-    x = "Treatment",
-    y = "Number of Songs",
-    fill = "Treatment"
-  ) +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))+
-  theme_bw() +
-  theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
-```
-
-## Median and Median Absolute Deviation Bar Chart No Outliers.
-
-```{r}
-#| label: median_bar_chart_creation_no_outliers
-
-ggplot(number_of_songs_no_outliers, aes(x = treatment, y = number_of_songs, fill = treatment)) +
-  stat_summary(fun = median, geom = "col", colour = "black") +
-  stat_summary(fun.data = function(x) {
-    med = median(x, na.rm = TRUE)
-    mad_val = mad(x, na.rm = TRUE)
-    
-    tibble(
-      y = med,
-      ymin = med - mad_val,
-      ymax = med + mad_val
-    )
-  },
-  geom = "errorbar",
-  width = 0.2) +
-  labs(
-    x = "Treatment",
-    y = "Median Number of Songs",
-    fill = "Treatment"
-  ) +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" )) +
-  theme_bw() +
-  theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
-```
-
-```{r}
-#| label: numbers_for_sumary_bar_charts_no_outliers
-
-numbers_for_summary_bar_charts_no_outliers = number_of_songs_no_outliers %>%
-  group_by(treatment) %>%
-  summarise(n = sum(number_of_songs, na.rm = TRUE),
-            mean = mean(number_of_songs, na.rm = TRUE),
-            standard_deviation = sd(number_of_songs, na.rm = TRUE),
-            median = median(number_of_songs, na.rm = TRUE),
-            median_absolute_deviation = mad(number_of_songs, na.rm = TRUE))
-
-glimpse(numbers_for_summary_bar_charts_no_outliers)
-```
-
-## Boxplot Half Violin Plot with Jittered Data No Outliers.
-
-```{r}
-#| label: boxplot_half_violin_plot_with_jittered_data_no_outliers
-
-ggplot(number_of_songs_no_outliers,
-       aes(x = treatment,y = number_of_songs)) +
-  geom_boxplot(aes(fill = treatment),
-               width = 0.2,
-               outlier.colour = "firebrick2") +
-  geom_violinhalf(aes(fill = treatment),
-                  alpha = 0.25,
-                  position = position_nudge(x = 0.10),) +
-  geom_jitter(alpha = 0.5,
-              width = 0.05) +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" )) +
-  labs(
-    x = "Treatment",
-    y = "Number of Songs",
-    fill = "Treatment"
-  ) +
-  theme_bw() +
-  theme(axis.text.x = element_blank())
-```
-
-:::
-
-## Number of Songs While Within 10 Metres Graphs
-
-::: {.panel-tabset}
-
-## Overall Histogram
-
-```{r}
-ggplot(cleaned_summary_dataset, aes(x = number_of_songs_while_within_10_meters, fill = treatment)) +
-  geom_histogram(
-    binwidth = 5,
-    colour = "black",
-  ) +
-  labs(
-    x = "Number of Songs While Within 10 Metres",
-    y = "Count",
-    fill = "Treatment"
-  ) +
-  scale_x_continuous(breaks = seq(0, ceiling(max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)/10)*10, 10)) +
-  theme_bw() +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))
-```
-
-```{r}
-max(cleaned_summary_dataset$number_of_songs_while_within_10_meters, na.rm = TRUE)
-```
-
-## Bar Chart
-
-```{r}
-ggplot(cleaned_summary_dataset, aes(x = treatment, y = number_of_songs_while_within_10_meters, fill = treatment)) +
-  geom_col(colour = "black") +
-  scale_y_continuous(breaks = seq(0, ceiling(max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)/10)*10, 10)) +
-  labs(
-    x = "Treatment",
-    y = "Number of Songs While Within 10 Metres",
-    fill = "Treatment"
-  ) +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" ))+
-  theme_bw() +
-  theme(legend.position = "none", axis.text.x = element_text(face = "bold"))
-```
-
-```{r}
-cleaned_summary_dataset %>%
-  group_by(treatment) %>%
-  summarise(n = sum(number_of_songs_while_within_10_meters, na.rm = TRUE))
-```
-
-## Boxplot Half Violin Plot with Jittered Data
-
-```{r}
-ggplot(cleaned_summary_dataset,
-       aes(x = treatment,y = number_of_songs_while_within_10_meters)) +
-  geom_boxplot(aes(fill = treatment),
-               width = 0.2,
-               outlier.colour = "firebrick2") +
-  geom_violinhalf(aes(fill = treatment),
-                  alpha = 0.25,
-                  position = position_nudge(x = 0.10),) +
-  geom_jitter(alpha = 0.5,
-              width = 0.05) +
-  scale_fill_manual(values = c("gray50", "#1b9e77","#d95f02", "#7570b3" )) +
-  labs(
-    x = "Treatment",
-    y = "Number of Songs While Within 10 Meteres",
-    fill = "Treatment"
-  ) +
-  theme_bw() +
-  theme(axis.text.x = element_blank())
-```
-
-# Weather Variables Cleaning
-```{r}
 file_list = list.files("SJIA_weather_data")
 
-airport_weather_data = as_tibble(read.csv(paste0("SJIA_weather_data/", file_list[1])))
+airport_weather_data = as_tibble(
+  read.csv(paste0("SJIA_weather_data/", file_list[1]))
+)
 
 for(i in 2:length(file_list)) {
-  temp_weather_data = as_tibble(read.csv(paste0("SJIA_weather_data/", file_list[i])))
+  temp_weather_data = as_tibble(
+    read.csv(paste0("SJIA_weather_data/", file_list[i]))
+  )
   
-airport_weather_data = bind_rows(airport_weather_data, temp_weather_data)
+  airport_weather_data = bind_rows(
+    airport_weather_data,
+    temp_weather_data
+  )
 }
 
 short_weather_data = airport_weather_data %>%
@@ -735,36 +285,561 @@ short_weather_data = airport_weather_data %>%
     dew_point = Dew.Point.Temp...C.,
   ) %>% 
   select(datetime, temperature, wind_speed)
+```
 
+# Assemble the Trial-Level Analysis Dataset
+
+## Combine Trial Summaries
+
+Create one row for every expected bird-treatment combination and join the trial-level response variables.
+
+```{r}
+#| label: build_trial_dataset
+
+dark_eyed_juncos = c("SRBB", "SGGR", "SBYY", "SYYR", "SBYB", "SRBY", "SGGG", "SYBB", "SBBB", "SRBR", "SRRG")
+
+conditions = c("Control", "10", "16", "22")
+
+temp = c()
+
+for(i in dark_eyed_juncos) {
+  for(j in conditions) {
+    temp = c(temp, paste0(i, "_", j))
+  }
+}
+
+cleaned_summary_dataset = tibble(bird_condition = temp) %>%
+  separate(col = bird_condition, into = c("bands", "treatment")) %>%
+  left_join(date_and_time, by = c("bands", "treatment")) %>%
+  left_join(songs, by = c("bands", "treatment")) %>%
+  left_join(minimum_distance, by = c("bands", "treatment")) %>%
+  left_join(time_to_10m, by = c("bands", "treatment")) %>%
+  left_join(time_within_10_metres, by = c("bands", "treatment")) %>%
+  left_join(number_of_songs_within_10_metres, by = c("bands", "treatment")) %>%
+  left_join(physical_attacks, by = c("bands", "treatment")) %>%
+  left_join(number_of_stimuli, by = c("bands", "treatment")) %>%
+  mutate(
+    treatment = recode_factor(
+      treatment,
+      "Control" = "Control",
+      "22" = "One SD Below Mean",
+      "16" = "Mean",
+      "10" = "One SD Above Mean",
+      .ordered = TRUE
+    )
+  ) %>%
+  relocate(date_of_trial, time_of_trial, .before = bands) %>%
+  select(-c(pbstart_time, first_time_within_10))
 ```
 
 ## Joining weather variables to associated trials
 
-```{r}
-cleaned_summary_dataset <- cleaned_summary_dataset %>% 
-  filter(!is.na(date_of_trial)) %>% 
-  mutate(datetime = ymd_hms(paste(date_of_trial, time_of_trial)),
-         datetime = force_tz(datetime, tzone = "America/St_Johns")) %>%
-  mutate(closest_datetime = floor_date(datetime, unit = "hour") + minutes(30)) %>% 
-  left_join(short_weather_data, by = c("closest_datetime" = "datetime")) %>% 
-  select(-ends_with(".y"), -ends_with(".x"))
+Match each trial to the weather observation at the correspoonding half-hour time stamp.
 
+```{r}
+#| label: join_weather_covariates
+
+cleaned_summary_dataset = cleaned_summary_dataset %>% 
+  filter(!is.na(date_of_trial)) %>% 
+  mutate(
+    datetime = ymd_hms(paste(date_of_trial, time_of_trial)),
+    datetime = force_tz(datetime, tzone = "America/St_Johns"),
+    closest_datetime = floor_date(datetime, unit = "hour") + minutes(30)
+  ) %>%
+  left_join(
+    short_weather_data,
+    by = c("closest_datetime" = "datetime")
+  ) %>% 
+  select(-ends_with(".y"), -ends_with(".x"))
 ```
 
-# Trying to Figure out the overlapping calls
+::: {.callout-note}
+## Checks to Resolve Before Formal Modeling
+
+- Whether the summaries are correctly summarising each of the variables (10% Check?)
+- Whether `time_to_approach_10m` should explicitly ignore distance observations before `Pbstart`.
+- Whether "within 10 metres" should consistently mean `< 10` or `<= 10` across variables.
+- Whether trials with zero songs, attacks, or songs within 10 metres should be recorded as `0` rather than `NA` after the joins
+- wehter the `time_within_10_metres` calculation correctly handles trials that begin or end while the bird is within 10 metres.
+-Whether the half-hour weather time stamp is the intended nearest weather observation for every trial.
+:::
+
+# Exploratory Analysis
+
+## Number of Songs
+
+::: {.panel-tabset}
+
+### Overall Histogram
 
 ```{r}
+#| label: song_count_histogram
+
+ggplot(cleaned_summary_dataset, aes(x = number_of_songs, fill = treatment)) +
+  geom_histogram(colour = "black") +
+  labs(
+    x = "Number of Songs",
+    y = "Count",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3"))
+```
+
+```{r}
+#| label: song_count_maximum
+#| include: false
+
+max(cleaned_summary_dataset$number_of_songs, na.rm = TRUE)
+```
+
+### Mean and Standard Deviation
+
+```{r}
+#| label: song_count_mean_sd
+
+ggplot(
+  cleaned_summary_dataset,
+  aes(x = treatment, y = number_of_songs, fill = treatment)
+) +
+  stat_summary(fun = mean, geom = "col", colour = "black") +
+  stat_summary(
+    fun.data = mean_sdl,
+    fun.args = list(mult = 1),
+    geom = "errorbar",
+    width = 0.2
+  ) +
+  labs(
+    x = "Treatment",
+    y = "Number of Songs",
+    fill = "Treatment"
+  ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3"))+
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(face = "bold")
+  )
+```
+
+### Median and Median Absolute Deviation
+
+```{r}
+#| label: song_count_median_mad
+
+ggplot(
+  cleaned_summary_dataset,
+  aes(x = treatment, y = number_of_songs, fill = treatment)
+) +
+  stat_summary(fun = median, geom = "col", colour = "black") +
+  stat_summary(
+    fun.data = function(x) {
+      med = median(x, na.rm = TRUE)
+      mad_val = mad(x, na.rm = TRUE)
+    
+      tibble(
+        y = med,
+        ymin = med - mad_val,
+        ymax = med + mad_val
+      )
+    },
+    geom = "errorbar",
+    width = 0.2
+  ) +
+  labs(
+    x = "Treatment",
+    y = "Median Number of Songs",
+    fill = "Treatment"
+  ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3")) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(face = "bold")
+  )
+```
+
+### Summary Statistics
+
+```{r}
+#| label: song_count_summary
+
+numbers_for_summary_bar_charts = cleaned_summary_dataset %>%
+  group_by(treatment) %>%
+  summarise(
+    total_songs = sum(number_of_songs, na.rm = TRUE),
+    mean = mean(number_of_songs, na.rm = TRUE),
+    standard_deviation = sd(number_of_songs, na.rm = TRUE),
+    median = median(number_of_songs, na.rm = TRUE),
+    median_absolute_deviation = mad(number_of_songs, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+glimpse(numbers_for_summary_bar_charts)
+```
+
+### Distribution by treatment
+
+```{r}
+#| label: song_count_distribution
+
+ggplot(cleaned_summary_dataset, aes(x = treatment,y = number_of_songs)) +
+  geom_boxplot(
+    aes(fill = treatment),
+    width = 0.2,
+    outlier.colour = "firebrick2"
+  ) +
+  geom_violinhalf(
+    aes(fill = treatment),
+    alpha = 0.25,
+    position = position_nudge(x = 0.10)
+  ) +
+  geom_jitter(alpha = 0.5, width = 0.05) +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3")) +
+  labs(
+    x = "Treatment",
+    y = "Number of Songs",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_blank())
+```
+
+:::
+
+## Individual Treatment Profiles
+
+Plot each bird across treatments to visualize the repeated-measures structure.
+
+```{r}
+#| label: song_count_individual_profiles
+
+ggplot(
+  cleaned_summary_dataset,
+  aes(
+    x = treatment,
+    y = number_of_songs,
+    group = bands,
+    color = bands
+  )
+) +
+  geom_point() + 
+  geom_line()
+```
+
+## Song-Count Sensitivity to Extreme Observations
+
+The following data set excludes observations outside 1.5 IQR of the treatment specific distribution. It is retained for visualization and sensitivity checks only; exclusion from formal analyses should require a biological or measurement-based justification.
+
+```{r}
+#| label: filter_song_count_outliers
+
+number_of_songs_no_outliers = cleaned_summary_dataset %>%
+  group_by(treatment) %>%
+  filter(
+    number_of_songs >= quantile(number_of_songs, 0.25, na.rm = TRUE) - 1.5 * IQR(number_of_songs, na.rm = TRUE),
+    number_of_songs <= quantile(number_of_songs, 0.75, na.rm = TRUE) + 1.5 * IQR(number_of_songs, na.rm = TRUE)
+  ) %>%
+  ungroup()
+```
+
+::: {.panel-tabset}
+
+### Histogram Without Extreme Observations
+
+```{r}
+#| label: song_count_histogram_no_outliers
+
+ggplot(number_of_songs_no_outliers, aes(x = number_of_songs, fill = treatment)) +
+  geom_histogram(colour = "black") +
+  labs(
+    x = "Number of Songs",
+    y = "Count",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3"))
+```
+
+```{r}
+#| label: maximum_number_of_songs_no_outliers
+#| include: false
+
+max(number_of_songs_no_outliers$number_of_songs, na.rm = TRUE)
+```
+
+### Mean and Standard Deviation Without Extreme Observations
+
+```{r}
+#| label: song_count_mean_sd_no_outliers
+
+ggplot(
+  number_of_songs_no_outliers,
+  aes(x = treatment, y = number_of_songs, fill = treatment)
+) +
+  stat_summary(fun = mean, geom = "col", colour = "black") +
+  stat_summary(
+    fun.data = mean_sdl,
+    fun.args = list(mult = 1),
+    geom = "errorbar",
+    width = 0.2
+  ) +
+  labs(
+    x = "Treatment",
+    y = "Number of Songs",
+    fill = "Treatment"
+  ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3"))+
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(face = "bold")
+  )
+```
+
+### Median and MAD Without Extreme Observations
+
+```{r}
+#| label: song_count_median_mad_no_outliers
+
+ggplot(
+  number_of_songs_no_outliers,
+  aes(x = treatment, y = number_of_songs, fill = treatment)
+) +
+  stat_summary(fun = median, geom = "col", colour = "black") +
+  stat_summary(
+    fun.data = function(x) {
+      med = median(x, na.rm = TRUE)
+      mad_val = mad(x, na.rm = TRUE)
+    
+      tibble(
+        y = med,
+        ymin = med - mad_val,
+        ymax = med + mad_val
+      )
+    },
+    geom = "errorbar",
+    width = 0.2
+  ) +
+  labs(
+    x = "Treatment",
+    y = "Median Number of Songs",
+    fill = "Treatment"
+  ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3")) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(face = "bold"))
+```
+
+### Summary Statistics Without Extreme Observations
+
+```{r}
+#| label: song_count_summary_no_outliers
+
+numbers_for_summary_bar_charts_no_outliers = number_of_songs_no_outliers %>%
+  group_by(treatment) %>%
+  summarise(
+    total_songs = sum(number_of_songs, na.rm = TRUE),
+    mean = mean(number_of_songs, na.rm = TRUE),
+    standard_deviation = sd(number_of_songs, na.rm = TRUE),
+    median = median(number_of_songs, na.rm = TRUE),
+    median_absolute_deviation = mad(number_of_songs, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+glimpse(numbers_for_summary_bar_charts_no_outliers)
+```
+
+### Distribution Without Extreme Observations
+
+```{r}
+#| label: song_count_distribution_no_outliers
+
+ggplot(number_of_songs_no_outliers, aes(x = treatment,y = number_of_songs)) +
+  geom_boxplot(
+    aes(fill = treatment),
+    width = 0.2,
+    outlier.colour = "firebrick2"
+  ) +
+  geom_violinhalf(
+    aes(fill = treatment),
+    alpha = 0.25,
+    position = position_nudge(x = 0.10)
+  ) +
+  geom_jitter(alpha = 0.5, width = 0.05) +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3")) +
+  labs(
+    x = "Treatment",
+    y = "Number of Songs",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_blank())
+```
+
+:::
+
+## Number of Songs While Within 10 Metres
+
+::: {.panel-tabset}
+
+### Overall Histogram
+
+```{r}
+#| label: songs_within_10_metres_histogram
+
+ggplot(
+  cleaned_summary_dataset,
+  aes(x = number_of_songs_while_within_10_meters, fill = treatment)
+) +
+  geom_histogram(binwidth = 5, colour = "black") +
+  labs(
+    x = "Number of Songs While Within 10 Metres",
+    y = "Count",
+    fill = "Treatment"
+  ) +
+  scale_x_continuous(
+    breaks = seq(
+      0,
+      ceiling(max(
+        cleaned_summary_dataset$number_of_songs,
+        na.rm = TRUE
+        ) / 10) * 10,
+      10
+    )
+  ) +
+  theme_bw() +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3"))
+```
+
+```{r}
+#| label: songs_within_10_metres_maximum
+#| include: false
+
+max(cleaned_summary_dataset$number_of_songs_while_within_10_meters, na.rm = TRUE)
+```
+
+### Total Songs by Treatment
+
+```{r}
+#| label: songs_within_10_metres_total_bar_chart
+
+ggplot(
+  cleaned_summary_dataset,
+  aes(
+    x = treatment,
+    y = number_of_songs_while_within_10_meters,
+    fill = treatment
+  )
+) +
+  geom_col(colour = "black") +
+  labs(
+    x = "Treatment",
+    y = "Number of Songs While Within 10 Metres",
+    fill = "Treatment"
+  ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3"))+
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(face = "bold"))
+```
+
+### Treatment Totals
+
+```{r}
+#| label: songs_within_10_metres_treatment_totals
+
+cleaned_summary_dataset %>%
+  group_by(treatment) %>%
+  summarise(
+    total_songs_within_10_metres = sum(
+      number_of_songs_while_within_10_meters,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  )
+```
+
+### Distribution by Treatment
+
+```{r}
+#| label: songs_within_10_metres_distribution
+
+ggplot(
+  cleaned_summary_dataset,
+  aes(x = treatment,y = number_of_songs_while_within_10_meters)
+) +
+  geom_boxplot(
+    aes(fill = treatment),
+    width = 0.2,
+    outlier.colour = "firebrick2"
+  ) +
+  geom_violinhalf(
+    aes(fill = treatment),
+    alpha = 0.25,
+    position = position_nudge(x = 0.10)
+  ) +
+  geom_jitter(alpha = 0.5, width = 0.05) +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3")) +
+  labs(
+    x = "Treatment",
+    y = "Number of Songs While Within 10 Meteres",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_blank())
+```
+:::
+
+# Exploratory Song--Stimulus Overlap
+
+```{r}
+#| label: identify song_stimulus_overlap
+
 overlap = deju_data %>%
-  mutate(comparison_onset = if_else(str_detect(annotation, "Pbstim"), onset, NA_real_),
-         comparison_onset_reverse = comparison_onset,
-         comparison_offset = if_else(str_detect(annotation, "Pbstim"), offset, NA_real_),
-         comparison_offset_reverse = comparison_offset) %>%
+  mutate(
+    comparison_onset = if_else(
+      str_detect(annotation, "Pbstim"),
+      onset,
+      NA_real_
+    ),
+    comparison_onset_reverse = comparison_onset,
+    comparison_offset = if_else(
+      str_detect(annotation, "Pbstim"),
+      offset,
+      NA_real_
+    ),
+    comparison_offset_reverse = comparison_offset
+  ) %>%
   fill(comparison_onset, comparison_offset, .direction = "down") %>%
   fill(comparison_onset_reverse, comparison_offset_reverse, .direction = "up") %>%
-  mutate(focalsong_onset = if_else(str_detect(annotation, "Focalsong"), onset, NA_real_),
-         focalsong_offset = if_else(str_detect(annotation, "Focalsong"), offset, NA_real_),
-         overlap = if_else(focalsong_onset >= comparison_onset & focalsong_onset <= comparison_offset, "overlap", NA_character_),
-         reverse_overlap = if_else(focalsong_offset >= comparison_onset_reverse & focalsong_offset <= comparison_offset_reverse, "overlap", NA_character_)) 
+  mutate(
+    focalsong_onset = if_else(
+      str_detect(annotation, "Focalsong"),
+      onset,
+      NA_real_
+    ),
+    focalsong_offset = if_else(
+      str_detect(annotation, "Focalsong"),
+      offset,
+      NA_real_
+    ),
+    overlap = if_else(
+      focalsong_onset >= comparison_onset &
+        focalsong_onset <= comparison_offset,
+      "overlap",
+      NA_character_
+    ),
+    reverse_overlap = if_else(
+      focalsong_offset >= comparison_onset_reverse &
+        focalsong_offset <= comparison_offset_reverse,
+      "overlap",
+      NA_character_
+    )
+  ) 
 ```
 
 based on what the results of the above code chunk it seems to look like DEJU intentionally do not overlap there songs. some more data analysis should be run to confirm this but preliminary results based off of some what was produced in the data frame suggest that Junco overlapping stimulus is ten times less likely than stimulus overlapping Junco.
