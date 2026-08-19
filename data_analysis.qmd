@@ -331,6 +331,7 @@ cleaned_summary_dataset = tibble(bird_condition = temp) %>%
   relocate(date_of_trial, time_of_trial, .before = bands) %>%
   select(-c(pbstart_time, first_time_within_10)) %>%
   mutate(
+    time_within_10_metres = replace_na(time_within_10_metres, 0),
     number_of_songs = replace_na(number_of_songs, 0),
     number_of_songs_while_within_10_meters = replace_na(number_of_songs_while_within_10_meters, 0),
     physical_attacks = replace_na(physical_attacks, 0)
@@ -509,6 +510,157 @@ ggplot(cleaned_summary_dataset, aes(x = treatment,y = number_of_songs)) +
   ) +
   theme_bw() +
   theme(axis.text.x = element_blank())
+```
+
+:::
+
+## Time within 10 metres
+
+::: {.panel-tabset}
+
+### Overall Histogram
+
+```{r}
+#| label: time_within_10_metres_histogram
+
+ggplot(cleaned_summary_dataset, aes(x = time_within_10_metres, fill = treatment)) +
+  geom_histogram(colour = "black") +
+  labs(
+    x = "Time within 10m",
+    y = "Count",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3"))
+```
+
+### Mean and Standard Deviation
+
+```{r}
+#| label: within_10_metres_mean_sd
+
+ggplot(
+  cleaned_summary_dataset,
+  aes(x = treatment, y = time_within_10_metres, fill = treatment)
+) +
+  stat_summary(fun = mean, geom = "col", colour = "black") +
+  stat_summary(
+    fun.data = mean_sdl,
+    fun.args = list(mult = 1),
+    geom = "errorbar",
+    width = 0.2
+  ) +
+  labs(
+    x = "Treatment",
+    y = "Time within 10m",
+    fill = "Treatment"
+  ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3"))+
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(face = "bold")
+  )
+```
+
+### Distribution by treatment
+
+```{r}
+#| label: within_10_metres_distribution
+
+ggplot(cleaned_summary_dataset, aes(x = treatment,y = time_within_10_metres)) +
+  geom_boxplot(
+    aes(fill = treatment),
+    width = 0.2,
+    outlier.colour = "firebrick2"
+  ) +
+  geom_violinhalf(
+    aes(fill = treatment),
+    alpha = 0.25,
+    position = position_nudge(x = 0.10)
+  ) +
+  geom_jitter(alpha = 0.5, width = 0.05) +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3")) +
+  labs(
+    x = "Treatment",
+    y = "Time within 10m",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_blank())
+```
+
+:::
+
+## Time to approach 10 metres
+
+::: {.panel-tabset}
+
+### Overall Histogram
+
+```{r}
+#| label: time_to_approach_10m_histogram
+
+ggplot(cleaned_summary_dataset, aes(x = time_to_approach_10m, fill = treatment)) +
+  geom_histogram(colour = "black") +
+  labs(
+    x = "Time to approach 10m",
+    y = "Count",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3"))
+```
+
+:::
+
+## Minimum distance
+
+::: {.panel-tabset}
+
+### Overall Histogram
+
+```{r}
+#| label: minimum_distance_histogram
+
+ggplot(cleaned_summary_dataset, aes(x = minimum_distance, fill = treatment)) +
+  geom_histogram(colour = "black") +
+  labs(
+    x = "Minimum distance (m)",
+    y = "Count",
+    fill = "Treatment"
+  ) +
+  theme_bw() +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3"))
+```
+
+### Mean and Standard Deviation
+
+```{r}
+#| label: minimum_distance_mean_sd
+
+ggplot(
+  cleaned_summary_dataset,
+  aes(x = treatment, y = minimum_distance, fill = treatment)
+) +
+  stat_summary(fun = mean, geom = "col", colour = "black") +
+  stat_summary(
+    fun.data = mean_sdl,
+    fun.args = list(mult = 1),
+    geom = "errorbar",
+    width = 0.2
+  ) +
+  labs(
+    x = "Treatment",
+    y = "Minimum distance (m)",
+    fill = "Treatment"
+  ) +
+  scale_fill_manual(values = c("gray50", "#1b9e77", "#d95f02", "#7570b3"))+
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(face = "bold")
+  )
 ```
 
 :::
@@ -1146,11 +1298,15 @@ trial_overlap_summary %>%
   )
 ```
 
-#Checking for independence of response variables and for potential random effects
+# Looking for covariation
+In this section, we examine the possibility of correlation between response variables and the possibility of impacts of some random factors like weather
 
-##Starting by constructung a simple correlogram
+## Correlogram
+Plotting all response variables + weather data against each other
 
 ```{r}
+#| label: correlogram of response variables and weather data
+
 library(ggforce)
 
 ggplot(cleaned_summary_dataset) +
