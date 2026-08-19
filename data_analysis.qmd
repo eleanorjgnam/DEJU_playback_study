@@ -157,7 +157,6 @@ Calculate elapsed time from playback start to the first recorded distance at or 
 
 time_to_10m = deju_data %>%
   group_by(bands, treatment) %>%
-  filter(onset > first(onset[annotation == "Pbstart"])) %>%
   summarise(
     pbstart_time = first(onset[annotation == "Pbstart"]),
     first_time_within_10 = if_else(any(estimated_distance_of_focal_male <= 10, na.rm = TRUE),
@@ -173,34 +172,62 @@ time_to_10m = deju_data %>%
 Estimate the total time spent within 10 metres from successive crossings of the 10 metre boundary
 
 ```{r}
+#| label: identify_focal_distance_observations
+
+focal_distance_observations = deju_data %>%
+  filter(str_detect(annotation, "^\\d+m$")) %>%
+  transmute(
+    bands,
+    treatment,
+    distance_onset = onset,
+    estimated_distance = as.numeric(str_remove(annotation, "m$"))
+  )
+```
+
+```{r}
+#| label: identify_focal_observation_end
+focal_observation_end = deju_data %>%
+  group_by(bands, treatment) %>%
+  filter(str_detect(annotation, "Focal")) %>%
+  summarise(
+    focal_end = last(offset),
+    final_annotation = last(annotation),
+    .groups = "drop"
+  )
+```
+
+```{r}
+#| label: create_focal_distance_intervals
+
+focal_distance_intervals = focal_distance_observations %>%
+  left_join(
+    focal_observation_end,
+    by = c("bands", "treatment")
+  ) %>%
+  group_by(bands, treatment) %>%
+  arrange(distance_onset, .by_group = TRUE) %>%
+  mutate(
+    distance_end = lead(
+      distance_onset,
+      default = first(focal_end)
+    ),
+    interval_duration = distance_end - distance_onset
+  ) %>%
+  ungroup()
+```
+
+```{r}
 #| label: summarise_time_within_ten_metres
 
-time_within_10_metres = deju_data %>%
+time_within_10_metres = focal_distance_intervals %>%
   group_by(bands, treatment) %>%
-  mutate(
-    previous_distance = lag(estimated_distance_of_focal_male),
-    next_distance = lead(estimated_distance_of_focal_male),
-    move = if_else(
-      estimated_distance_of_focal_male <= 10 &
-        (previous_distance > 10 | is.na(previous_distance)) |
-        estimated_distance_of_focal_male > 10 & previous_distance <= 10,
-      "yes",
-      "no"
-      )
-    ) %>%
-  filter(move == "yes") %>%
-  mutate(
-    direction = if_else(
-      previous_distance > estimated_distance_of_focal_male,
-      "in",
-      "out"
-      ),
-    time_spent = if_else(direction == "in", NA_real_, onset - lag(onset))
-    ) %>%
   summarise(
-    time_within_10_metres = sum(time_spent, na.rm = TRUE),
+    time_within_10_metres = sum(
+      interval_duration[estimated_distance <= 10],
+      na.rm = TRUE
+    ),
     .groups = "drop"
-    )
+  )
 ```
 
 ## Number of Songs Within 10 Metres
@@ -359,18 +386,6 @@ cleaned_summary_dataset = cleaned_summary_dataset %>%
   ) %>% 
   select(-ends_with(".y"), -ends_with(".x"))
 ```
-
-::: {.callout-note}
-## Checks to Resolve Before Formal Modeling
-
-- Validate the derived trial-level behavioural summaries against a subset of original annotations.
-- Confirm that `time_to_approach_10m` ignores distance observations occurring before `Pbstart`.
-- Standardize whether "within 10 metres" means `<= 10` throughout the analysis.
-- Verify the handling of trials that begin or end while the focal male is within 10 metres when calculating `time_within_10_metres`.
-- Confirm that the selected half-hour weather observation is the intended weather match for each trial.
-- Validate automated song--stimulus overlap classifications against the original Audacity annotations.
-- Recover calibrated playback amplitudes, if available, for the three conspecific amplitude treatments.
-:::
 
 # Exploratory Analysis
 
