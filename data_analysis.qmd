@@ -1331,8 +1331,33 @@ ggplot(cleaned_summary_dataset) +
 
 ```
 
+# Statistical Analysis of Variation
+
+## Number of Songs Produced as a Function of Treatment
+This is count data with a lot of zeros that at first pass looks like it could fit a poisson distribution, but the sample variance exceeds the sample mean (by a lot). I ended up constructing a GLMM using the negative binomial distribution (in glmmTMB) and tested model assumptions, including dispersion and zero inflation, by generating simulated residuals using the DHARMa package. The model includes individual identity ("bands") as a random effect. For post hoc testing of treatment, I used the emmeans package to calculate and contrast treatment estimated marginal means.
+
+This model is not final by any means, it's just the best I've come up with so far.
+
+```{r}
+library(DHARMa)
+library(emmeans)
+
+songmodnb <- glmmTMB(number_of_songs ~ treatment + (1 | bands), 
+                 family = nbinom2(), 
+                 data = cleaned_summary_dataset)
+summary(songmodnb)
 
 
+songmodres <- simulateResiduals(fittedModel = songmodnb)
+plot(songmodres, which = 1)
+
+testDispersion(songmodres)
+testZeroInflation(songmodres)
+
+songmodmeans <- emmeans(songmodnb, ~ treatment)
+pairs(songmodmeans, adjust = "tukey")
+
+```
 
 
 
