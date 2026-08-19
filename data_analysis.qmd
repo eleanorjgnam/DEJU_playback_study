@@ -1146,6 +1146,19 @@ trial_overlap_summary %>%
   )
 ```
 
+#Checking for independence of response variables and for potential random effects
+
+##Starting by constructung a simple correlogram
+
+```{r}
+library(ggforce)
+
+ggplot(cleaned_summary_dataset) +
+  geom_point(aes(x = .panel_x, y = .panel_y)) +
+  facet_matrix(vars(wind_speed, temperature, number_of_songs, minimum_distance, time_to_approach_10m, time_within_10_metres, number_of_songs_while_within_10_meters))
+
+```
+
 
 
 
