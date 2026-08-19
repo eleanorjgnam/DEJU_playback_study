@@ -157,6 +157,7 @@ Calculate elapsed time from playback start to the first recorded distance at or 
 
 time_to_10m = deju_data %>%
   group_by(bands, treatment) %>%
+  filter(onset > first(onset[annotation == "Pbstart"])) %>%
   summarise(
     pbstart_time = first(onset[annotation == "Pbstart"]),
     first_time_within_10 = if_else(any(estimated_distance_of_focal_male <= 10, na.rm = TRUE),
