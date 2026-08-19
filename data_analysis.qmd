@@ -211,7 +211,7 @@ Count focal-male song annotations made while the current distance estimate is le
 
 number_of_songs_within_10_metres = deju_data %>%
   group_by(bands, treatment) %>%
-  filter(estimated_distance_of_focal_male < 10) %>%
+  filter(estimated_distance_of_focal_male <= 10) %>%
   filter(str_detect(annotation, "Focalsong")) %>%
   summarise(
     number_of_songs_while_within_10_meters = n(),
@@ -287,7 +287,7 @@ short_weather_data = airport_weather_data %>%
   select(datetime, temperature, wind_speed)
 ```
 
-# Assemble the Trial-Level Analysis Dataset
+# Assemble the Trial-Level Analysis Data Set
 
 ## Combine Trial Summaries
 
@@ -329,7 +329,12 @@ cleaned_summary_dataset = tibble(bird_condition = temp) %>%
     )
   ) %>%
   relocate(date_of_trial, time_of_trial, .before = bands) %>%
-  select(-c(pbstart_time, first_time_within_10))
+  select(-c(pbstart_time, first_time_within_10)) %>%
+  mutate(
+    number_of_songs = replace_na(number_of_songs, 0),
+    number_of_songs_while_within_10_meters = replace_na(number_of_songs_while_within_10_meters, 0),
+    physical_attacks = replace_na(physical_attacks, 0)
+      )
 ```
 
 ## Joining weather variables to associated trials
@@ -356,12 +361,13 @@ cleaned_summary_dataset = cleaned_summary_dataset %>%
 ::: {.callout-note}
 ## Checks to Resolve Before Formal Modeling
 
-- Whether the summaries are correctly summarising each of the variables (10% Check?)
-- Whether `time_to_approach_10m` should explicitly ignore distance observations before `Pbstart`.
-- Whether "within 10 metres" should consistently mean `< 10` or `<= 10` across variables.
-- Whether trials with zero songs, attacks, or songs within 10 metres should be recorded as `0` rather than `NA` after the joins
-- wehter the `time_within_10_metres` calculation correctly handles trials that begin or end while the bird is within 10 metres.
--Whether the half-hour weather time stamp is the intended nearest weather observation for every trial.
+- Validate the derived trial-level behavioural summaries against a subset of original annotations.
+- Confirm that `time_to_approach_10m` ignores distance observations occurring before `Pbstart`.
+- Standardize whether "within 10 metres" means `<= 10` throughout the analysis.
+- Verify the handling of trials that begin or end while the focal male is within 10 metres when calculating `time_within_10_metres`.
+- Confirm that the selected half-hour weather observation is the intended weather match for each trial.
+- Validate automated song--stimulus overlap classifications against the original Audacity annotations.
+- Recover calibrated playback amplitudes, if available, for the three conspecific amplitude treatments.
 :::
 
 # Exploratory Analysis
@@ -794,53 +800,356 @@ ggplot(
 ```
 :::
 
-# Exploratory Song--Stimulus Overlap
+## Focal Song Duration
+
+Summarise focal-male song duration to examine variation among playback treatments and individual birds.
+
+### Mean Song Duration by Treatment
 
 ```{r}
-#| label: identify song_stimulus_overlap
+#| label: summarise_focal_song_duration
 
-overlap = deju_data %>%
+focal_duration_by_treatment = deju_data %>%
+  filter(str_detect(annotation, "Focalsong")) %>%
   mutate(
-    comparison_onset = if_else(
-      str_detect(annotation, "Pbstim"),
-      onset,
-      NA_real_
-    ),
-    comparison_onset_reverse = comparison_onset,
-    comparison_offset = if_else(
-      str_detect(annotation, "Pbstim"),
-      offset,
-      NA_real_
-    ),
-    comparison_offset_reverse = comparison_offset
-  ) %>%
-  fill(comparison_onset, comparison_offset, .direction = "down") %>%
-  fill(comparison_onset_reverse, comparison_offset_reverse, .direction = "up") %>%
-  mutate(
-    focalsong_onset = if_else(
-      str_detect(annotation, "Focalsong"),
-      onset,
-      NA_real_
-    ),
-    focalsong_offset = if_else(
-      str_detect(annotation, "Focalsong"),
-      offset,
-      NA_real_
-    ),
-    overlap = if_else(
-      focalsong_onset >= comparison_onset &
-        focalsong_onset <= comparison_offset,
-      "overlap",
-      NA_character_
-    ),
-    reverse_overlap = if_else(
-      focalsong_offset >= comparison_onset_reverse &
-        focalsong_offset <= comparison_offset_reverse,
-      "overlap",
-      NA_character_
+    treatment = recode_factor(
+      treatment,
+      "Control" = "Control",
+      "22" = "One SD Below Mean",
+      "16" = "Mean",
+      "10" = "One SD Above Mean",
+      .ordered = TRUE
     )
-  ) 
+  ) %>%
+  group_by(bands, treatment) %>%
+  summarise(mean_song_duration = mean(duration),
+            sd_song_duration = sd(duration),
+            .groups = "drop")
 ```
 
-based on what the results of the above code chunk it seems to look like DEJU intentionally do not overlap there songs. some more data analysis should be run to confirm this but preliminary results based off of some what was produced in the data frame suggest that Junco overlapping stimulus is ten times less likely than stimulus overlapping Junco.
+### Individual Treatment Profiles
+
+Plot the mean focal song duration for each bird across playback treatments.
+
+```{r}
+#| label: plot_focal_song_duration_by_treatment
+
+ggplot(
+  focal_duration_by_treatment,
+  aes(x = treatment,
+      y = mean_song_duration,
+      group = bands,
+      colour = bands
+    )
+) +
+  geom_line() +
+  geom_point() +
+  labs(
+    x = "Treatment",
+    y = "Mean Song Duration (s)",
+    colour = "Bands"
+  ) +
+  theme_bw()
+```
+
+### Bird Level Song Duration
+
+Summarise focal-song duration across all treatments for each bird. standard errors are calculated from the number of songs produced by each bird.
+
+```{r}
+#| label: summarise_focal_song_duration_by_bird
+
+focal_duration_by_bird = deju_data %>%
+  filter(str_detect(annotation, "Focalsong")) %>%
+  group_by(bands) %>%
+  summarise(
+    mean_song_duration = mean(duration),
+    sd_song_duration = sd(duration),
+    se_song_duration = sd_song_duration/(sqrt(n())),
+    number_of_songs = n(),
+    .groups = "drop"
+  )
+```
+
+```{r}
+#| label: plot_focal_song_duration_by_bird
+
+ggplot(
+  focal_duration_by_bird,
+  aes(
+    x = bands,
+    y = mean_song_duration
+  )
+) +
+  geom_point() +
+  geom_errorbar(
+    aes(
+      ymin = mean_song_duration - se_song_duration,
+      ymax = mean_song_duration + se_song_duration,
+  ),
+    width = 0.2
+  ) +
+  labs(
+    x = "Bird",
+    y = "Mean Song Duration (s)"
+  ) +
+  theme_bw()
+```
+
+# Song--Stimulus Overlap Analysis
+
+## Analysis Rationale
+
+Song--stimulus overlap was quantified following the general approach of Wilson et al. (2016). An overlap was defined as a focal-male song that began while a playback stimulus was already being broadcast. This directional definition evaluates whether focal males initiate songs during playback stimuli.
+
+For each trial, the observed number of focal-song overlaps will be compared with the number expected if focal-song timing were independent of playback timing. Chance expectation is calculated from the playback duty cycle, defined as the proportion of the experimental playback period occupied by playback stimuli.
+
+Because the playback experiment manipulated stimulus amplitude, focal songs used for the amplitude-related overlap analysis are restricted to songs produced while the focal male was estimated to be within 10 metres of the playback speaker. This restriction reduces variation in perceived playback amplitude caused by distance from the speaker.
+
+## Define Playback Windows
+
+Identify the beginning and end of the experimental playback period for each trial.
+
+The beginning of the playback is identified by the `Pbstart` annotation. Most trials also contain a `Pbstop` annotation identifying the end of the playback. However, because `Pbstop` is missing from some trials, the offset of the final `Pbstim` annotation is used for the playback endpoint.
+
+```{r}
+#| label: define_playback_windows
+
+playback_windows = deju_data %>%
+  group_by(bands, treatment) %>%
+  summarise(
+    playback_start = first(onset[str_detect(annotation, "Pbstart")]),
+    playback_end = last(offset[str_detect(annotation, "Pbstim")]),
+    .groups = "drop"
+  ) %>%
+  mutate(playback_duration = playback_end - playback_start)
+```
+
+## Identify Playback Stimuli
+
+Create one row for each playback stimulus. The annotation onset and offset define the interval during which the stimulus was playing.
+
+```{r}
+#| label: identify_playback_stimuli
+
+playback_stimuli = deju_data %>%
+  filter(str_detect(annotation, "Pbstim")) %>%
+  group_by(bands, treatment) %>%
+  arrange(onset, .by_group = TRUE) %>%
+  transmute(
+    bands,
+    treatment,
+    stimulus_number = row_number(),
+    stimulus_onset = onset,
+    stimulus_offset = offset,
+    stimulus_duration = duration
+  ) %>%
+  ungroup()
+```
+
+## Identify Focal Songs
+
+Create one row for each focal-male song and retain its onset, offset, duration, and estimated distance from the playback speaker.
+
+```{r}
+#| label: identify_focal_songs
+
+focal_songs = deju_data %>%
+  filter(str_detect(annotation, "Focalsong")) %>%
+  group_by(bands, treatment) %>%
+  arrange(onset, .by_group = TRUE) %>%
+  transmute(
+    bands,
+    treatment,
+    song_number = row_number(),
+    song_onset = onset,
+    song_offset = offset,
+    song_duration = duration,
+    estimated_distance_of_focal_male
+  ) %>%
+  ungroup()
+```
+
+## Define Eligible Focal Songs
+
+Restrict the analysis to focal songs produced during the experimental playback period while the focal male was estimated to be within 10 metres of the playback speaker.
+
+```{r}
+#| label: define_eligible_focal_songs
+
+eligible_focal_songs = focal_songs %>%
+  left_join(playback_windows, by = c("bands", "treatment")) %>%
+  filter(song_onset >= playback_start,
+         song_onset <= playback_end,
+         estimated_distance_of_focal_male <= 10)
+```
+
+## Classify Observed Overlaps
+
+A focal song is classified as an overlap when its onset occurs after the beginning and before the end of a playback stimulus. Songs beginning outside all playback-stimulus intervals are classified as nonoverlaps.
+
+```{r}
+#| label: classify_song_overlap
+
+song_overlap_matches = eligible_focal_songs %>%
+  inner_join(
+    playback_stimuli,
+    by = join_by(
+      bands,
+      treatment,
+      song_onset >= stimulus_onset,
+      song_onset < stimulus_offset
+    )
+  ) %>%
+  select(
+    bands,
+    treatment,
+    song_number,
+    stimulus_number
+  )
+```
+
+```{r}
+#| label: create_song_level_overlap_dataset
+
+song_level_overlap = eligible_focal_songs %>%
+  left_join(
+    song_overlap_matches,
+    by = c("bands", "treatment", "song_number")
+  ) %>%
+  mutate(
+    overlap = if_else(
+    is.na(stimulus_number),
+    0L,
+    1L
+  )
+)
+```
+
+## Calculate Playback Duty Cycle
+
+Calculate the proportion of each experimental playback period occupied by playback stimuli. Duty cycle represents the probability that a focal song beginning at a randomly selected time would begin during a playback stimulus.
+
+```{r}
+#| label: calculate_playback_duty_cycle
+
+playback_duty_cycle = playback_stimuli %>%
+  group_by(bands, treatment) %>%
+  summarise(
+    total_stimulus_time = sum(stimulus_duration, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    playback_windows,
+    by = c("bands", "treatment")
+  ) %>%
+  mutate(
+    duty_cycle = total_stimulus_time / playback_duration
+  )
+```
+
+## Summarise Observed Overlaps
+
+For each bird-treatment trial, count the number of eligible focal songs, count the number that began during playback stimuli, and calculate the observed proportion of focal songs that overlapped playback.
+
+```{r}
+#| label: summarise_observed_overlaps
+
+observed_overlaps = song_level_overlap %>%
+  group_by(bands, treatment) %>%
+  summarise(
+    number_of_focal_songs = n(),
+    observed_overlaps = sum(overlap),
+    observed_overlap_proportion = mean(overlap),
+    .groups = "drop"
+  )
+```
+
+## Calculate Expected Overlap
+
+Calculate the number of focal-song overlaps expected under random song timing. Expected overlap is the number of eligible focal songs multiplied by the playback duty cycle.
+
+```{r}
+#| label: calculate_expected_overlaps
+
+trial_overlap_summary = playback_duty_cycle %>%
+  left_join(
+    observed_overlaps,
+    by = c("bands", "treatment")
+  ) %>%
+  mutate(
+    number_of_focal_songs = replace_na(
+      number_of_focal_songs,
+      0L
+    ),
+    observed_overlaps = replace_na(
+      observed_overlaps,
+      0L
+    ),
+    observed_overlap_proportion = if_else(
+      number_of_focal_songs > 0,
+      observed_overlaps / number_of_focal_songs,
+      NA_real_
+    ),
+    expected_overlaps =
+      number_of_focal_songs * duty_cycle,
+    expected_overlap_proportion = duty_cycle,
+    observed_expected_ratio = if_else(
+      expected_overlaps > 0,
+      observed_overlaps / expected_overlaps,
+      NA_real_
+    )
+  )
+```
+
+## Inspect Observed and Expected Overlap
+
+Summarise observed and expected overlap before fitting inferential models.
+
+```{r}
+#| label: summarise_observed_expected_overlap
+
+trial_overlap_summary %>%
+  filter(number_of_focal_songs > 0) %>%
+  summarise(
+    number_of_trials = n(),
+    total_focal_songs = sum(number_of_focal_songs),
+    total_observed_overlaps = sum(observed_overlaps),
+    total_expected_overlaps = sum(expected_overlaps),
+    median_observed_overlaps = median(observed_overlaps),
+    median_expected_overlaps = median(expected_overlaps),
+    median_observed_expected_ratio = median(
+      observed_expected_ratio,
+      na.rm = TRUE
+    )
+  )
+```
+
+```{r}
+#| label: summarise_overlap_by_treatment
+
+trial_overlap_summary %>%
+  filter(number_of_focal_songs > 0) %>%
+  group_by(treatment) %>%
+  summarise(
+    number_of_trials = n(),
+    total_focal_songs = sum(number_of_focal_songs),
+    total_observed_overlaps = sum(observed_overlaps),
+    total_expected_overlaps = sum(expected_overlaps),
+    median_observed_overlaps = median(observed_overlaps),
+    median_expected_overlaps = median(expected_overlaps),
+    median_observed_expected_ratio = median(
+      observed_expected_ratio,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  )
+```
+
+
+
+
+
+
+
 
